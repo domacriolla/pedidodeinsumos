@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pedidos de Insumos — Doma Criolla</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+  :root{
+    --bg:#F1EEE7;
+    --surface:#FFFFFF;
+    --surface-alt:#FAF7F1;
+    --border:#DEDACD;
+    --border-strong:#C9C3B2;
+    --ink:#2B2621;
+    --ink-soft:#726A5C;
+    --ink-faint:#A69C89;
+    --accent:#BF6E23;
+    --accent-ink:#FFFFFF;
+    --accent-soft:#F1DDBB;
+    --accent-soft-ink:#7A4413;
+    --danger:#A83A2C;
+    --danger-soft:#F2DAD3;
+    --danger-ink:#7A2A1F;
+    --success:#4C7A43;
+    --success-soft:#DDEAD4;
+    --success-ink:#345C2C;
+    --pending:#B4801F;
+    --pending-soft:#F0E1B8;
+    --pending-ink:#7A5711;
+    --shadow: 0 1px 2px rgba(43,38,33,0.06), 0 4px 14px rgba(43,38,33,0.06);
+    --radius: 10px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#1B1815; --surface:#242019; --surface-alt:#2B261F; --border:#3D362C; --border-strong:#4E4536;
+      --ink:#F1ECE1; --ink-soft:#BCB2A0; --ink-faint:#8A8071;
+      --accent:#E2954E; --accent-ink:#221604; --accent-soft:#4A3419; --accent-soft-ink:#F3D9AF;
+      --danger:#E08573; --danger-soft:#432421; --danger-ink:#F2C6BC;
+      --success:#8FC183; --success-soft:#25331F; --success-ink:#C7E4BC;
+      --pending:#E0BC63; --pending-soft:#40340F; --pending-ink:#F2DB9F;
+      color-scheme: dark;
+    }
+  }
+  *{box-sizing:border-box;}
+  html,body{ margin:0; background:var(--bg); }
+  body{
+    color:var(--ink);
+    font-family:'IBM Plex Sans', system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{ max-width:760px; margin:0 auto; padding:0 16px 80px; }
+  h1,h2,h3{ font-family:'Archivo','IBM Plex Sans',sans-serif; margin:0; }
+  .mono{ font-family:'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  header.top{
+    position:sticky; top:0; z-index:20;
+    background:var(--bg);
+    padding:16px 16px 0;
+    border-bottom:1px solid var(--border);
+  }
+  header.top .head-row{
+    max-width:760px; margin:0 auto;
+    display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    padding-bottom:12px;
+  }
+  header.top h1{ font-size:20px; font-weight:800; letter-spacing:-0.01em; }
+  header.top .sub{ font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+  header.top .refresh{
+    background:none; border:1px solid var(--border-strong); border-radius:99px;
+    color:var(--ink-soft); font-size:12px; font-weight:600; padding:6px 12px; cursor:pointer;
+    font-family:'IBM Plex Sans',sans-serif; display:flex; align-items:center; gap:5px;
+  }
+  nav.tabs{ max-width:760px; margin:0 auto; display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; }
+  nav.tabs::-webkit-scrollbar{display:none;}
+  nav.tabs button{
+    appearance:none; border:none; background:none;
+    font-family:'Archivo',sans-serif; font-weight:700; font-size:13.5px;
+    color:var(--ink-soft); padding:10px 12px 12px; cursor:pointer;
+    border-bottom:2.5px solid transparent; white-space:nowrap;
+    display:flex; align-items:center; gap:6px;
+  }
+  nav.tabs button.active{ color:var(--ink); border-bottom-color:var(--accent); }
+  nav.tabs button .count{
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600;
+    background:var(--pending-soft); color:var(--pending-ink);
+    border-radius:99px; padding:1px 6px; min-width:16px; text-align:center;
+  }
+
+  main{ padding-top:18px; }
+  .panel{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:16px; }
+  .panel-head{ padding:14px 16px; border-bottom:1px dashed var(--border-strong); display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .panel-head h3{ font-size:14.5px; font-weight:700; letter-spacing:.02em; text-transform:uppercase; color:var(--ink-soft); }
+  .panel-body{ padding:14px 16px; }
+
+  label.field{ display:block; margin-bottom:12px; }
+  label.field .lbl{ display:block; font-size:12.5px; font-weight:600; color:var(--ink-soft); margin-bottom:5px; }
+  input[type=text], input[type=date], select, textarea{
+    width:100%; font-family:'IBM Plex Sans',sans-serif; font-size:15px;
+    padding:10px 11px; border-radius:8px; border:1px solid var(--border-strong);
+    background:var(--surface-alt); color:var(--ink); min-height:42px;
+  }
+  input[type=text]:focus, input[type=date]:focus, select:focus, textarea:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width:480px){ .row2{ grid-template-columns:1fr; } }
+
+  .btn{
+    appearance:none; border:none; cursor:pointer;
+    font-family:'Archivo',sans-serif; font-weight:700; font-size:14px;
+    padding:11px 18px; border-radius:8px;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    min-height:44px;
+  }
+  .btn-primary{ background:var(--accent); color:var(--accent-ink); }
+  .btn-primary:disabled{ opacity:.45; cursor:not-allowed; }
+  .btn-ghost{ background:transparent; color:var(--ink-soft); border:1px solid var(--border-strong); }
+  .btn-sm{ padding:7px 11px; min-height:34px; font-size:12.5px; }
+  .btn-block{ width:100%; }
+
+  .cat-block{ border-top:1px dashed var(--border-strong); }
+  .cat-block:first-child{ border-top:none; }
+  .cat-title{ padding:12px 16px 4px; font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--accent-soft-ink); background:var(--accent-soft); }
+  .item-row{ display:flex; align-items:center; gap:10px; padding:8px 16px; border-top:1px solid var(--border); }
+  .item-row:first-of-type{ border-top:none; }
+  .item-name{ flex:1; font-size:14px; line-height:1.3; }
+  .item-name .tag-extra{ font-size:10px; font-weight:700; color:var(--success-ink); background:var(--success-soft); border-radius:4px; padding:1px 5px; margin-left:6px; vertical-align:middle; }
+  .qty-input{ width:84px; flex:none; text-align:right; font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:14px; padding:8px 9px; min-height:38px; }
+  .rm-btn{ flex:none; width:30px; height:30px; border-radius:7px; border:1px solid var(--border-strong); background:var(--surface-alt); color:var(--danger); cursor:pointer; font-size:15px; line-height:1; }
+
+  .extra-add{ display:flex; gap:8px; padding:10px 16px 14px; }
+  .extra-add input[type=text]{ flex:1; }
+  .extra-add .qty-input{ width:76px; }
+
+  .badge{ font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; padding:3px 8px; border-radius:99px; white-space:nowrap; }
+  .badge-pending{ background:var(--pending-soft); color:var(--pending-ink); }
+  .badge-closed{ background:var(--success-soft); color:var(--success-ink); }
+
+  .filters{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border); }
+  .filters select{ width:auto; min-height:36px; padding:6px 10px; font-size:13px; }
+  .filters .btn{ margin-left:auto; }
+
+  .order-card{ padding:13px 16px; border-top:1px solid var(--border); display:flex; align-items:center; gap:12px; cursor:pointer; }
+  .order-card:first-child{ border-top:none; }
+  .order-card:hover{ background:var(--surface-alt); }
+  .order-card .oc-main{ flex:1; min-width:0; }
+  .order-card .oc-local{ font-family:'Archivo',sans-serif; font-weight:700; font-size:14.5px; }
+  .order-card .oc-sub{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
+  .order-card .oc-arrow{ color:var(--ink-faint); font-size:16px; }
+
+  .empty{ padding:34px 16px; text-align:center; color:var(--ink-soft); font-size:14px; }
+  .empty .big{ font-size:26px; margin-bottom:6px; }
+
+  .toast{
+    position:fixed; left:50%; bottom:22px; transform:translateX(-50%);
+    background:var(--ink); color:var(--bg); font-size:13.5px; font-weight:600;
+    padding:11px 18px; border-radius:99px; box-shadow:var(--shadow);
+    z-index:50; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(-6px); }
+
+  .detail-head{ padding:14px 16px; border-bottom:1px dashed var(--border-strong); }
+  .detail-head .back{ background:none; border:none; color:var(--ink-soft); font-family:'IBM Plex Sans',sans-serif; font-size:13px; cursor:pointer; padding:0 0 10px; display:flex; align-items:center; gap:4px; }
+  .detail-grid{ display:flex; flex-wrap:wrap; gap:8px 18px; font-size:13px; color:var(--ink-soft); }
+  .detail-grid b{ color:var(--ink); font-weight:600; }
+
+  .item-detail-row{ padding:11px 16px; border-top:1px solid var(--border); }
+  .item-detail-row:first-of-type{ border-top:none; }
+  .item-detail-row .idr-top{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .item-detail-row .idr-name{ flex:1; font-size:14px; }
+  .item-detail-row .idr-pedido{ font-size:12px; color:var(--ink-soft); }
+  .item-detail-row.st-enviado{ background:var(--success-soft); }
+  .item-detail-row.st-no_enviado{ background:var(--danger-soft); }
+  .idr-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .idr-controls .qty-input{ min-height:38px; }
+  .chk{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-soft); cursor:pointer; user-select:none; }
+  .chk input{ width:16px; height:16px; }
+  .idr-motivo{ margin-top:8px; display:grid; grid-template-columns:1fr auto; gap:8px; }
+  .idr-motivo input[type=text]{ font-size:13px; }
+  .idr-motivo input[type=date]{ font-size:13px; width:150px; }
+  @media (max-width:480px){ .idr-motivo{ grid-template-columns:1fr; } .idr-motivo input[type=date]{ width:100%; } }
+
+  .save-bar{ position:sticky; bottom:0; background:var(--bg); padding:12px 0 4px; border-top:1px solid var(--border); display:flex; gap:10px; }
+
+  .catalog-item{ display:flex; align-items:center; gap:10px; padding:7px 16px; border-top:1px solid var(--border); }
+  .catalog-item:first-of-type{ border-top:none; }
+  .catalog-item .ci-name{ flex:1; font-size:14px; }
+  .catalog-add{ display:flex; gap:8px; padding:10px 16px 14px; }
+  .catalog-add input{ flex:1; }
+
+  .banner{ background:var(--accent-soft); color:var(--accent-soft-ink); border-radius:var(--radius); padding:11px 14px; font-size:13px; margin-bottom:14px; border:1px solid var(--border-strong); }
+  .success-screen{ padding:40px 20px; text-align:center; }
+  .success-screen .big{ font-size:34px; margin-bottom:10px; }
+  .success-screen h2{ font-size:18px; margin-bottom:6px; }
+  .success-screen p{ color:var(--ink-soft); font-size:14px; margin:0 0 20px; }
+
+  ::selection{ background:var(--accent-soft); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="head-row">
+    <div>
+      <h1>Pedidos de Insumos — Doma Criolla</h1>
+      <div class="sub">Reemplaza la planilla en papel y la foto por WhatsApp</div>
+    </div>
+    <button class="refresh" id="refreshBtn" type="button">⟳ Actualizar</button>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="nuevo">Nuevo pedido</button>
+    <button data-tab="pedidos">Pedidos y envíos <span class="count" id="pendingCount" style="display:none">0</span></button>
+    <button data-tab="catalogo">Catálogo</button>
+  </nav>
+</header>
+
+<div class="wrap">
+  <main id="main">
+    <div class="empty"><div class="big">🧾</div>Cargando…</div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var CATEGORIES = [
+    {key:"LIMPIEZA", label:"Limpieza"},
+    {key:"LIBRERIA", label:"Librería"},
+    {key:"FARMACIA", label:"Farmacia"},
+    {key:"IMPRESIONES", label:"Impresiones"},
+    {key:"PACKAGING", label:"Packaging"}
+  ];
+  var CAT_LABEL = {};
+  CATEGORIES.forEach(function(c){ CAT_LABEL[c.key]=c.label; });
+
+  var LOCALES = [
+    {key:"CENTRO", label:"Local Centro"},
+    {key:"PATAGONIA", label:"Local Patagonia"},
+    {key:"ZELARRAYAN", label:"Local Zelarrayán"}
+  ];
+  var LOCAL_LABEL = {};
+  LOCALES.forEach(function(l){ LOCAL_LABEL[l.key]=l.label; });
+
+  // Pegá acá la URL que te da Apps Script al implementar (Implementar → Nueva
+  // implementación → Aplicación web), termina en /exec. Sin esto, la página
+  // no tiene con quién hablar para guardar ni leer los pedidos.
+  var API_URL = "PEGAR_ACA_TU_URL_DE_APPS_SCRIPT_TERMINADA_EN_/exec";
+
+  var catalogItems = [];
+  var pedidos = [];
+  var loaded = false;
+  var POLL_MS = 20000;
+
+  var state = {
+    tab: "nuevo",
+    detailId: null,
+    newOrderForm: null,
+    editForm: null,
+    filterEstado: "pendiente",
+    filterLocal: "TODOS"
+  };
+
+  // ---------- server bridge (fetch a la API de Apps Script) ----------
+  function apiConfigured(){
+    return API_URL && API_URL.indexOf("PEGAR_ACA") === -1;
+  }
+
+  function callServer(action, payload){
+    if(!apiConfigured()){
+      return Promise.reject(new Error("Falta configurar API_URL en Index.html con el link de Apps Script."));
+    }
+    if(action === "getData"){
+      return fetch(API_URL + "?action=getData", {method:"GET"})
+        .then(function(r){ return r.json(); })
+        .then(checkApiError_);
+    }
+    var body = Object.assign({action:action}, payload||{});
+    return fetch(API_URL, {
+      method:"POST",
+      headers: {"Content-Type":"text/plain;charset=utf-8"}, // evita el preflight CORS
+      body: JSON.stringify(body)
+    }).then(function(r){ return r.json(); }).then(checkApiError_);
+  }
+
+  function checkApiError_(data){
+    if(data && data.error){ throw new Error(data.error); }
+    return data;
+  }
+
+  // ---------- helpers ----------
+  function todayStr(){
+    var d = new Date();
+    var m = (d.getMonth()+1+"").padStart(2,"0");
+    var day = (d.getDate()+"").padStart(2,"0");
+    return d.getFullYear()+"-"+m+"-"+day;
+  }
+  function fmtDate(s){
+    if(!s) return "";
+    var p = s.split("-");
+    if(p.length!==3) return s;
+    return p[2]+"/"+p[1]+"/"+p[0];
+  }
+  function fmtDateTime(iso){
+    try{
+      var d = new Date(iso);
+      return d.toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit"}) + " " + d.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
+    }catch(e){ return ""; }
+  }
+  function esc(s){
+    return (s==null?"":String(s)).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function uid(){ return Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4); }
+
+  function toast(msg){
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toast._h);
+    toast._h = setTimeout(function(){ t.classList.remove("show"); }, 2400);
+  }
+  function safeLS(){ try{ return window.localStorage; }catch(e){ return null; } }
+  function lsGet(k, d){ var ls=safeLS(); if(!ls) return d; try{ var v=ls.getItem(k); return v==null?d:v; }catch(e){ return d; } }
+  function lsSet(k,v){ var ls=safeLS(); if(!ls) return; try{ ls.setItem(k,v); }catch(e){} }
+
+  function groupByCategory(items){
+    var byCat = {};
+    CATEGORIES.forEach(function(c){ byCat[c.key]=[]; });
+    items.forEach(function(it){
+      if(!byCat[it.category]) byCat[it.category]=[];
+      byCat[it.category].push(it);
+    });
+    return byCat;
+  }
+
+  // ---------- data load / poll ----------
+  function loadData(silent){
+    if(!apiConfigured()){
+      loaded = true;
+      var main = document.getElementById("main");
+      main.innerHTML = '<div class="panel"><div class="panel-body"><div class="banner" style="margin:0">'+
+        'Falta un paso: abrí este archivo Index.html, buscá la línea <code>API_URL</code> cerca del comienzo del script '+
+        'y pegá ahí la URL que te dio Apps Script al implementar (termina en <code>/exec</code>). Después volvé a subirlo a GitHub.'+
+        '</div></div></div>';
+      return Promise.resolve();
+    }
+    return callServer("getData").then(function(data){
+      catalogItems = data.catalog || [];
+      pedidos = data.pedidos || [];
+      loaded = true;
+      render();
+    }).catch(function(err){
+      console.error(err);
+      if(!silent) toast("No se pudo cargar. Revisá la conexión.");
+      if(!loaded){ loaded = true; render(); }
+    });
+  }
+
+  setInterval(function(){
+    // Solo actualiza en segundo plano si no hay algo a medio escribir.
+    if(state.tab==="pedidos" && !state.detailId){ loadData(true); }
+    else if(state.tab==="catalogo"){ loadData(true); }
+  }, POLL_MS);
+
+  // ---------- render root ----------
+  function render(){
+    var main = document.getElementById("main");
+    document.querySelectorAll("#tabs button").forEach(function(b){
+      b.classList.toggle("active", b.getAttribute("data-tab")===state.tab);
+    });
+    var pendCount = pedidos.filter(function(p){ return p.estado==="pendiente"; }).length;
+    var pc = document.getElementById("pendingCount");
+    if(pendCount>0){ pc.style.display="inline-block"; pc.textContent=pendCount; }
+    else { pc.style.display="none"; }
+
+    if(!loaded){
+      main.innerHTML = '<div class="empty"><div class="big">🧾</div>Cargando catálogo…</div>';
+      return;
+    }
+    if(state.tab==="nuevo") return renderNuevo(main);
+    if(state.tab==="pedidos"){
+      if(state.detailId) return renderDetail(main, state.detailId);
+      return renderLista(main);
+    }
+    if(state.tab==="catalogo") return renderCatalogo(main);
+  }
+
+  // ---------- TAB: Nuevo pedido ----------
+  function buildNewOrderForm(){
+    var byCat = groupByCategory(catalogItems);
+    var items = {};
+    CATEGORIES.forEach(function(c){
+      byCat[c.key].forEach(function(it){
+        items[it.id] = {id:it.id, category:c.key, name:it.name, qty:""};
+      });
+    });
+    return {
+      local: lsGet("dc_last_local", ""),
+      fecha: todayStr(),
+      quienPide: lsGet("dc_quien_pide", ""),
+      notas: "",
+      items: items,
+      extra: []
+    };
+  }
+
+  function renderNuevo(main){
+    if(!state.newOrderForm){ state.newOrderForm = buildNewOrderForm(); }
+    var f = state.newOrderForm;
+    var byCat = groupByCategory(catalogItems);
+
+    var html = '';
+    if(catalogItems.length===0){
+      html += '<div class="banner">Todavía no hay ítems en el catálogo. Cargalos desde la pestaña <b>Catálogo</b>.</div>';
+    }
+    html += '<div class="panel"><div class="panel-body">';
+    html += '<div class="row2">';
+    html += fieldSelect("Local", "f_local", LOCALES.map(function(l){return {v:l.key,l:l.label};}), f.local, true);
+    html += fieldInput("Fecha del pedido", "f_fecha", "date", f.fecha);
+    html += '</div>';
+    html += '<div class="row2">';
+    html += fieldInput("¿Quién pide? (opcional)", "f_quien", "text", f.quienPide);
+    html += fieldInput("Notas (opcional)", "f_notas", "text", f.notas);
+    html += '</div>';
+    html += '</div></div>';
+
+    CATEGORIES.forEach(function(c){
+      var list = byCat[c.key];
+      var extraList = f.extra.filter(function(e){ return e.category===c.key; });
+      html += '<div class="panel"><div class="cat-block">';
+      html += '<div class="cat-title">'+esc(c.label)+'</div>';
+      list.forEach(function(it){
+        var val = f.items[it.id] ? f.items[it.id].qty : "";
+        html += '<div class="item-row">';
+        html += '<div class="item-name">'+esc(it.name)+'</div>';
+        html += '<input class="qty-input" type="text" inputmode="numeric" placeholder="cant." data-item-id="'+it.id+'" value="'+esc(val)+'">';
+        html += '</div>';
+      });
+      extraList.forEach(function(e){
+        html += '<div class="item-row">';
+        html += '<div class="item-name">'+esc(e.name)+'<span class="tag-extra">nuevo</span></div>';
+        html += '<input class="qty-input" type="text" inputmode="numeric" placeholder="cant." data-extra-id="'+e.tempId+'" value="'+esc(e.qty)+'">';
+        html += '<button class="rm-btn" data-rm-extra="'+e.tempId+'" title="Quitar" type="button">×</button>';
+        html += '</div>';
+      });
+      html += '<div class="extra-add">';
+      html += '<input type="text" placeholder="Agregar ítem puntual…" data-extra-name-cat="'+c.key+'">';
+      html += '<button class="btn btn-ghost btn-sm" type="button" data-extra-add-cat="'+c.key+'">+ Agregar</button>';
+      html += '</div>';
+      html += '</div></div>';
+    });
+
+    html += '<button class="btn btn-primary btn-block" id="submitOrder" type="button">Enviar pedido</button>';
+
+    main.innerHTML = html;
+
+    main.querySelector("#f_local").addEventListener("change", function(e){ f.local = e.target.value; });
+    main.querySelector("#f_fecha").addEventListener("change", function(e){ f.fecha = e.target.value; });
+    main.querySelector("#f_quien").addEventListener("input", function(e){ f.quienPide = e.target.value; });
+    main.querySelector("#f_notas").addEventListener("input", function(e){ f.notas = e.target.value; });
+
+    main.querySelectorAll("[data-item-id]").forEach(function(inp){
+      inp.addEventListener("input", function(){
+        var id = inp.getAttribute("data-item-id");
+        if(!f.items[id]) return;
+        f.items[id].qty = inp.value;
+      });
+    });
+    main.querySelectorAll("[data-extra-id]").forEach(function(inp){
+      inp.addEventListener("input", function(){
+        var id = inp.getAttribute("data-extra-id");
+        var e = f.extra.find(function(x){return x.tempId===id;});
+        if(e) e.qty = inp.value;
+      });
+    });
+    main.querySelectorAll("[data-rm-extra]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var id = btn.getAttribute("data-rm-extra");
+        f.extra = f.extra.filter(function(x){ return x.tempId!==id; });
+        renderNuevo(main);
+      });
+    });
+    main.querySelectorAll("[data-extra-add-cat]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var cat = btn.getAttribute("data-extra-add-cat");
+        var input = main.querySelector('[data-extra-name-cat="'+cat+'"]');
+        var name = (input.value||"").trim();
+        if(!name){ input.focus(); return; }
+        f.extra.push({tempId:uid(), category:cat, name:name, qty:""});
+        renderNuevo(main);
+      });
+    });
+
+    main.querySelector("#submitOrder").addEventListener("click", function(){ submitOrder(f); });
+  }
+
+  function fieldInput(label, id, type, val){
+    return '<label class="field"><span class="lbl">'+esc(label)+'</span>'+
+      '<input type="'+type+'" id="'+id+'" value="'+esc(val)+'"></label>';
+  }
+  function fieldSelect(label, id, opts, val, withPlaceholder){
+    var html = '<label class="field"><span class="lbl">'+esc(label)+'</span><select id="'+id+'">';
+    if(withPlaceholder) html += '<option value=""'+(val===""?" selected":"")+' disabled>Elegir…</option>';
+    opts.forEach(function(o){
+      html += '<option value="'+esc(o.v)+'"'+(o.v===val?" selected":"")+'>'+esc(o.l)+'</option>';
+    });
+    html += '</select></label>';
+    return html;
+  }
+
+  function submitOrder(f){
+    if(!f.local){ toast("Elegí un local"); return; }
+    if(!f.fecha){ toast("Elegí una fecha"); return; }
+    var items = [];
+    Object.keys(f.items).forEach(function(id){
+      var it = f.items[id];
+      if(it.qty && it.qty.trim()!==""){
+        items.push({ id:it.id, category:it.category, name:it.name, isExtra:false, pedidoCant:it.qty.trim() });
+      }
+    });
+    f.extra.forEach(function(e){
+      if(e.qty && e.qty.trim()!==""){
+        items.push({ id:e.tempId, category:e.category, name:e.name, isExtra:true, pedidoCant:e.qty.trim() });
+      }
+    });
+    if(items.length===0){ toast("Cargá al menos una cantidad"); return; }
+
+    var payload = { local:f.local, fecha:f.fecha, quienPide:f.quienPide||"", notas:f.notas||"", items:items };
+    var btn = document.getElementById("submitOrder");
+    if(btn){ btn.disabled = true; btn.textContent = "Enviando…"; }
+    callServer("createPedido", payload).then(function(){
+      lsSet("dc_last_local", f.local);
+      lsSet("dc_quien_pide", f.quienPide||"");
+      state.newOrderForm = null;
+      showOrderSuccess(payload);
+      loadData(true);
+    }).catch(function(err){
+      console.error(err);
+      toast("No se pudo enviar. Probá de nuevo.");
+      if(btn){ btn.disabled=false; btn.textContent="Enviar pedido"; }
+    });
+  }
+
+  function showOrderSuccess(payload){
+    var main = document.getElementById("main");
+    main.innerHTML =
+      '<div class="panel"><div class="success-screen">'+
+      '<div class="big">✅</div>'+
+      '<h2>Pedido enviado</h2>'+
+      '<p>'+esc(LOCAL_LABEL[payload.local]||payload.local)+' · '+esc(fmtDate(payload.fecha))+' · '+payload.items.length+' ítem'+(payload.items.length===1?"":"s")+'</p>'+
+      '<button class="btn btn-primary" id="anotherOrder" type="button">Cargar otro pedido</button>'+
+      '</div></div>';
+    main.querySelector("#anotherOrder").addEventListener("click", function(){ render(); });
+  }
+
+  // ---------- TAB: Pedidos y envíos (lista) ----------
+  function renderLista(main){
+    var html = '<div class="panel">';
+    html += '<div class="filters">';
+    html += '<select id="filtEstado">';
+    [["pendiente","Pendientes"],["cerrado","Cerrados"],["todos","Todos"]].forEach(function(o){
+      html += '<option value="'+o[0]+'"'+(state.filterEstado===o[0]?" selected":"")+'>'+o[1]+'</option>';
+    });
+    html += '</select>';
+    html += '<select id="filtLocal"><option value="TODOS"'+(state.filterLocal==="TODOS"?" selected":"")+'>Todos los locales</option>';
+    LOCALES.forEach(function(l){
+      html += '<option value="'+l.key+'"'+(state.filterLocal===l.key?" selected":"")+'>'+esc(l.label)+'</option>';
+    });
+    html += '</select>';
+    html += '<button class="btn btn-ghost btn-sm" id="exportCsv" type="button">⭳ Exportar CSV</button>';
+    html += '</div>';
+
+    var list = pedidos.filter(function(p){
+      if(state.filterEstado!=="todos" && p.estado!==state.filterEstado) return false;
+      if(state.filterLocal!=="TODOS" && p.local!==state.filterLocal) return false;
+      return true;
+    });
+
+    if(list.length===0){
+      html += '<div class="empty"><div class="big">📭</div>No hay pedidos con este filtro.</div>';
+    } else {
+      list.forEach(function(p){
+        var pend = (p.items||[]).filter(function(it){ return it.estadoItem==="pendiente"; }).length;
+        var falt = (p.items||[]).filter(function(it){ return it.estadoItem==="no_enviado"; }).length;
+        var subParts = [(p.items||[]).length + " ítems"];
+        if(pend>0) subParts.push(pend+" sin resolver");
+        if(falt>0) subParts.push(falt+" con faltante");
+        html += '<div class="order-card" data-open="'+p.id+'">';
+        html += '<div class="oc-main">';
+        html += '<div class="oc-local">'+esc(LOCAL_LABEL[p.local]||p.local)+' · '+esc(fmtDate(p.fecha))+'</div>';
+        html += '<div class="oc-sub">'+esc(subParts.join(" · "))+'</div>';
+        html += '</div>';
+        html += '<span class="badge '+(p.estado==="cerrado"?"badge-closed":"badge-pending")+'">'+(p.estado==="cerrado"?"Cerrado":"Pendiente")+'</span>';
+        html += '<span class="oc-arrow">›</span>';
+        html += '</div>';
+      });
+    }
+    html += '</div>';
+    main.innerHTML = html;
+
+    main.querySelector("#filtEstado").addEventListener("change", function(e){ state.filterEstado=e.target.value; render(); });
+    main.querySelector("#filtLocal").addEventListener("change", function(e){ state.filterLocal=e.target.value; render(); });
+    main.querySelector("#exportCsv").addEventListener("click", function(){ exportCsv(list); });
+    main.querySelectorAll("[data-open]").forEach(function(card){
+      card.addEventListener("click", function(){
+        state.detailId = card.getAttribute("data-open");
+        state.editForm = null;
+        render();
+      });
+    });
+  }
+
+  // ---------- exportar historial a CSV (descarga directa en el navegador) ----------
+  function csvField(v){
+    var s = (v==null? "": String(v));
+    if(/[",;\n]/.test(s)) s = '"'+s.replace(/"/g,'""')+'"';
+    return s;
+  }
+  var ESTADO_ITEM_LABEL = {pendiente:"Pendiente", enviado:"Enviado", no_enviado:"No enviado"};
+
+  function exportCsv(list){
+    if(!list || list.length===0){ toast("No hay pedidos para exportar"); return; }
+    var header = ["Local","Fecha pedido","Estado pedido","Quién pide","Categoría","Ítem","Ítem nuevo","Cant. pedida","Cant. enviada","Estado ítem","Motivo","Fecha estimada","Cargado"];
+    var rows = [header];
+    list.forEach(function(p){
+      (p.items||[]).forEach(function(it){
+        rows.push([
+          LOCAL_LABEL[p.local]||p.local, fmtDate(p.fecha), p.estado==="cerrado"?"Cerrado":"Pendiente",
+          p.quienPide||"", CAT_LABEL[it.category]||it.category, it.name, it.isExtra?"Sí":"",
+          it.pedidoCant||"", it.envioCant||"", ESTADO_ITEM_LABEL[it.estadoItem]||it.estadoItem||"",
+          it.motivo||"", it.fechaEstimada?fmtDate(it.fechaEstimada):"", fmtDateTime(p.createdAt)
+        ]);
+      });
+    });
+    var csv = "﻿" + rows.map(function(r){ return r.map(csvField).join(","); }).join("\r\n");
+    var localTag = state.filterLocal==="TODOS" ? "todos" : state.filterLocal.toLowerCase();
+    var filename = "pedidos_insumos_"+localTag+"_"+todayStr()+".csv";
+
+    try{
+      var blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+      toast("Historial exportado");
+    }catch(err){
+      console.error(err);
+      toast("No se pudo exportar en este navegador");
+    }
+  }
+
+  // ---------- TAB: detalle de pedido (envío) ----------
+  function renderDetail(main, id){
+    var p = pedidos.find(function(x){ return x.id===id; });
+    if(!p){ state.detailId = null; return renderLista(main); }
+    if(!state.editForm || state.editForm._id!==id){
+      state.editForm = {
+        _id: id,
+        items: (p.items||[]).map(function(it){
+          return {
+            id:it.id, category:it.category, name:it.name, isExtra:!!it.isExtra,
+            pedidoCant: it.pedidoCant, envioCant: it.envioCant||"",
+            noEnviado: it.estadoItem==="no_enviado",
+            motivo: it.motivo||"", fechaEstimada: it.fechaEstimada||""
+          };
+        })
+      };
+    }
+    var f = state.editForm;
+    var byCat = {};
+    CATEGORIES.forEach(function(c){ byCat[c.key]=[]; });
+    f.items.forEach(function(it){ (byCat[it.category]=byCat[it.category]||[]).push(it); });
+
+    var html = '<div class="panel">';
+    html += '<div class="detail-head">';
+    html += '<button class="back" id="backBtn" type="button">‹ Volver a la lista</button>';
+    html += '<h2>'+esc(LOCAL_LABEL[p.local]||p.local)+'</h2>';
+    html += '<div class="detail-grid" style="margin-top:8px">';
+    html += '<span><b>Fecha:</b> '+esc(fmtDate(p.fecha))+'</span>';
+    if(p.quienPide) html += '<span><b>Pide:</b> '+esc(p.quienPide)+'</span>';
+    html += '<span><b>Cargado:</b> '+esc(fmtDateTime(p.createdAt))+'</span>';
+    html += '<span class="badge '+(p.estado==="cerrado"?"badge-closed":"badge-pending")+'">'+(p.estado==="cerrado"?"Cerrado":"Pendiente")+'</span>';
+    html += '</div>';
+    if(p.notas) html += '<div class="detail-grid" style="margin-top:6px"><span><b>Notas:</b> '+esc(p.notas)+'</span></div>';
+    html += '</div>';
+
+    CATEGORIES.forEach(function(c){
+      var list = byCat[c.key]||[];
+      if(list.length===0) return;
+      html += '<div class="cat-block">';
+      html += '<div class="cat-title">'+esc(c.label)+'</div>';
+      list.forEach(function(it){
+        var stCls = it.noEnviado ? "st-no_enviado" : (it.envioCant.trim()!=="" ? "st-enviado" : "");
+        html += '<div class="item-detail-row '+stCls+'" data-row="'+esc(it.id)+'">';
+        html += '<div class="idr-top">';
+        html += '<div class="idr-name">'+esc(it.name)+(it.isExtra?'<span class="tag-extra">nuevo</span>':'')+'<div class="idr-pedido">Pedido: <span class="mono">'+esc(it.pedidoCant)+'</span></div></div>';
+        html += '</div>';
+        html += '<div class="idr-controls">';
+        html += '<input class="qty-input" type="text" inputmode="numeric" placeholder="enviado" data-envio="'+esc(it.id)+'" value="'+esc(it.envioCant)+'" '+(it.noEnviado?"disabled":"")+'>';
+        html += '<label class="chk"><input type="checkbox" data-noenv="'+esc(it.id)+'" '+(it.noEnviado?"checked":"")+'> No se envía</label>';
+        html += '</div>';
+        if(it.noEnviado){
+          html += '<div class="idr-motivo">';
+          html += '<input type="text" placeholder="Motivo (ej: sin stock)" data-motivo="'+esc(it.id)+'" value="'+esc(it.motivo)+'">';
+          html += '<input type="date" data-festimada="'+esc(it.id)+'" value="'+esc(it.fechaEstimada)+'">';
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+
+    html += '<div class="panel-body save-bar">';
+    html += '<button class="btn btn-primary btn-block" id="saveDetail" type="button">Guardar envío</button>';
+    html += '</div>';
+    html += '</div>';
+
+    main.innerHTML = html;
+
+    main.querySelector("#backBtn").addEventListener("click", function(){
+      state.detailId = null; state.editForm = null; render();
+    });
+    main.querySelectorAll("[data-envio]").forEach(function(inp){
+      inp.addEventListener("input", function(){
+        var id = inp.getAttribute("data-envio");
+        var it = f.items.find(function(x){return x.id===id;});
+        if(it) it.envioCant = inp.value;
+      });
+    });
+    main.querySelectorAll("[data-noenv]").forEach(function(chk){
+      chk.addEventListener("change", function(){
+        var id = chk.getAttribute("data-noenv");
+        var it = f.items.find(function(x){return x.id===id;});
+        if(it){ it.noEnviado = chk.checked; if(chk.checked) it.envioCant=""; }
+        renderDetail(main, state.detailId);
+      });
+    });
+    main.querySelectorAll("[data-motivo]").forEach(function(inp){
+      inp.addEventListener("input", function(){
+        var id = inp.getAttribute("data-motivo");
+        var it = f.items.find(function(x){return x.id===id;});
+        if(it) it.motivo = inp.value;
+      });
+    });
+    main.querySelectorAll("[data-festimada]").forEach(function(inp){
+      inp.addEventListener("change", function(){
+        var id = inp.getAttribute("data-festimada");
+        var it = f.items.find(function(x){return x.id===id;});
+        if(it) it.fechaEstimada = inp.value;
+      });
+    });
+    main.querySelector("#saveDetail").addEventListener("click", function(){ saveDetail(p); });
+  }
+
+  function saveDetail(p){
+    var f = state.editForm;
+    var items = f.items.map(function(it){
+      var estadoItem = "pendiente";
+      if(it.noEnviado){ estadoItem = "no_enviado"; }
+      else if(it.envioCant && it.envioCant.trim()!==""){ estadoItem = "enviado"; }
+      return {
+        id:it.id, envioCant:it.envioCant||"", estadoItem: estadoItem,
+        motivo: it.noEnviado ? it.motivo : "", fechaEstimada: it.noEnviado ? it.fechaEstimada : ""
+      };
+    });
+
+    var btn = document.getElementById("saveDetail");
+    if(btn){ btn.disabled=true; btn.textContent="Guardando…"; }
+    callServer("updatePedidoEnvio", {pedidoId:p.id, items:items}).then(function(){
+      toast("Envío guardado");
+      state.editForm = null;
+      loadData(true);
+    }).catch(function(err){
+      console.error(err);
+      toast("No se pudo guardar. Probá de nuevo.");
+      if(btn){ btn.disabled=false; btn.textContent="Guardar envío"; }
+    });
+  }
+
+  // ---------- TAB: catálogo (protegido con clave) ----------
+  function permMsg(err, action){
+    if(err && err.message && err.message.indexOf("PERMISO_DENEGADO")!==-1){
+      return "Clave incorrecta: esta edición del catálogo está limitada a Carolina.";
+    }
+    return "No se pudo "+action+". Probá de nuevo.";
+  }
+
+  function renderCatalogo(main){
+    var byCat = groupByCategory(catalogItems);
+    var html = '<div class="banner">Agregar o quitar ítems acá cambia la lista para los <b>próximos</b> pedidos (pide una clave). Los pedidos ya cargados no se modifican.</div>';
+    CATEGORIES.forEach(function(c){
+      var list = byCat[c.key].slice().sort(function(a,b){ return (a.order||0)-(b.order||0) || a.name.localeCompare(b.name); });
+      html += '<div class="panel"><div class="cat-block">';
+      html += '<div class="cat-title">'+esc(c.label)+' <span class="mono" style="font-weight:500;opacity:.7">('+list.length+')</span></div>';
+      list.forEach(function(it){
+        html += '<div class="catalog-item">';
+        html += '<div class="ci-name">'+esc(it.name)+'</div>';
+        html += '<button class="rm-btn" data-del-item="'+it.id+'" title="Eliminar" type="button">×</button>';
+        html += '</div>';
+      });
+      html += '<div class="catalog-add">';
+      html += '<input type="text" placeholder="Nuevo ítem en '+esc(c.label)+'…" data-newcat="'+c.key+'">';
+      html += '<button class="btn btn-ghost btn-sm" data-addcat="'+c.key+'" type="button">+ Agregar</button>';
+      html += '</div>';
+      html += '</div></div>';
+    });
+    main.innerHTML = html;
+
+    main.querySelectorAll("[data-del-item]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var id = btn.getAttribute("data-del-item");
+        var pass = window.prompt("Clave para editar el catálogo:");
+        if(pass==null) return;
+        callServer("deleteCatalogItem", {id:id, password:pass}).then(function(){
+          toast("Ítem eliminado");
+          loadData(true);
+        }).catch(function(err){ console.error(err); toast(permMsg(err, "eliminar")); });
+      });
+    });
+    main.querySelectorAll("[data-addcat]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var cat = btn.getAttribute("data-addcat");
+        var input = main.querySelector('[data-newcat="'+cat+'"]');
+        var name = (input.value||"").trim();
+        if(!name){ input.focus(); return; }
+        var pass = window.prompt("Clave para editar el catálogo:");
+        if(pass==null) return;
+        callServer("addCatalogItem", {categoria:cat, nombre:name, password:pass}).then(function(){
+          input.value="";
+          toast("Ítem agregado");
+          loadData(true);
+        }).catch(function(err){ console.error(err); toast(permMsg(err, "agregar")); });
+      });
+    });
+  }
+
+  // ---------- nav / refresh ----------
+  document.getElementById("tabs").addEventListener("click", function(e){
+    var btn = e.target.closest("button[data-tab]");
+    if(!btn) return;
+    state.tab = btn.getAttribute("data-tab");
+    if(state.tab!=="pedidos"){ state.detailId=null; }
+    render();
+  });
+  document.getElementById("refreshBtn").addEventListener("click", function(){
+    loadData(false);
+  });
+
+  // ---------- boot ----------
+  loadData(false);
+})();
+</script>
+</body>
+</html>
