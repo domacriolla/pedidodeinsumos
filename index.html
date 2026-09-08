@@ -104,8 +104,6 @@
   }
   input[type=text]:focus, input[type=password]:focus, input[type=date]:focus, select:focus, textarea:focus{ outline:2px solid var(--accent); outline-offset:1px; }
   .user-box{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-  .user-box .user-name{ font-size:12.5px; font-weight:600; color:var(--ink-soft); }
-  .login-wrap{ max-width:340px; margin:48px auto; }
   .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   @media (max-width:480px){ .row2{ grid-template-columns:1fr; } }
 
@@ -224,17 +222,14 @@
     <div>
       <h1>Pedidos de Insumos — Doma Criolla</h1>
     </div>
-    <div id="userBox" class="user-box" style="display:none">
-      <span class="user-name" id="userName"></span>
+    <div class="user-box">
       <button class="refresh" id="refreshBtn" type="button">⟳ Actualizar</button>
-      <button class="refresh" id="logoutBtn" type="button">Salir</button>
     </div>
   </div>
-  <nav class="tabs" id="tabs" style="display:none">
+  <nav class="tabs" id="tabs">
     <button data-tab="nuevo">Nuevo pedido</button>
     <button data-tab="pedidos">Pedidos y envíos <span class="count" id="pendingCount" style="display:none">0</span></button>
     <button data-tab="catalogo">Catálogo</button>
-    <button data-tab="usuarios">Usuarios</button>
   </nav>
 </header>
 
@@ -278,7 +273,6 @@
   var pedidos = [];
   var loaded = false;
   var POLL_MS = 20000;
-  var currentUser = null;
 
   var state = {
     tab: "nuevo",
@@ -326,9 +320,17 @@
   }
   function fmtDate(s){
     if(!s) return "";
-    var p = s.split("-");
-    if(p.length!==3) return s;
-    return p[2]+"/"+p[1]+"/"+p[0];
+    var p = String(s).split("-");
+    if(p.length===3 && p[0].length===4){
+      return p[2].slice(0,2)+"/"+p[1]+"/"+p[0];
+    }
+    // Por si llega algo que no sea "yyyy-mm-dd" (por ejemplo una fecha sin
+    // normalizar), lo interpretamos igual en vez de mostrar texto crudo.
+    try{
+      var d = new Date(s);
+      if(isNaN(d.getTime())) return String(s);
+      return d.toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"});
+    }catch(e){ return String(s); }
   }
   function fmtDateTime(iso){
     try{
@@ -353,20 +355,6 @@
   function safeLS(){ try{ return window.localStorage; }catch(e){ return null; } }
   function lsGet(k, d){ var ls=safeLS(); if(!ls) return d; try{ var v=ls.getItem(k); return v==null?d:v; }catch(e){ return d; } }
   function lsSet(k,v){ var ls=safeLS(); if(!ls) return; try{ ls.setItem(k,v); }catch(e){} }
-
-  // ---------- sesión (usuario logueado) ----------
-  function loadCurrentUser(){
-    var raw = lsGet("dc_user", null);
-    if(!raw) return null;
-    try{ return JSON.parse(raw); }catch(e){ return null; }
-  }
-  function saveCurrentUser(u){ lsSet("dc_user", JSON.stringify(u)); }
-  function clearCurrentUser(){ var ls=safeLS(); if(ls){ try{ ls.removeItem("dc_user"); }catch(e){} } }
-  function showLoggedInChrome(show){
-    document.getElementById("userBox").style.display = show ? "flex" : "none";
-    document.getElementById("tabs").style.display = show ? "" : "none";
-    if(show) document.getElementById("userName").textContent = currentUser ? currentUser.nombre : "";
-  }
 
   function groupByCategory(items){
     var byCat = {};
@@ -402,7 +390,6 @@
   }
 
   setInterval(function(){
-    if(!currentUser) return;
     // Solo actualiza en segundo plano si no hay algo a medio escribir.
     if(state.tab==="pedidos" && !state.detailId){ loadData(true); }
     else if(state.tab==="catalogo"){ loadData(true); }
@@ -429,7 +416,6 @@
       return renderLista(main);
     }
     if(state.tab==="catalogo") return renderCatalogo(main);
-    if(state.tab==="usuarios") return renderUsuarios(main);
   }
 
   // ---------- TAB: Nuevo pedido ----------
@@ -443,6 +429,7 @@
     });
     return {
       local: lsGet("dc_last_local", ""),
+      quienPide: lsGet("dc_quien_pide", ""),
       fecha: todayStr(),
       notas: "",
       items: items,
@@ -464,6 +451,7 @@
     html += fieldSelect("Local", "f_local", LOCALES.map(function(l){return {v:l.key,l:l.label};}), f.local, true);
     html += fieldInput("Fecha del pedido", "f_fecha", "date", f.fecha);
     html += '</div>';
+    html += fieldInput("¿Quién pide?", "f_quien", "text", f.quienPide);
     html += fieldInput("Notas (opcional)", "f_notas", "text", f.notas);
     html += '</div></div>';
 
@@ -499,6 +487,7 @@
 
     main.querySelector("#f_local").addEventListener("change", function(e){ f.local = e.target.value; });
     main.querySelector("#f_fecha").addEventListener("change", function(e){ f.fecha = e.target.value; });
+    main.querySelector("#f_quien").addEventListener("input", function(e){ f.quienPide = e.target.value; });
     main.querySelector("#f_notas").addEventListener("input", function(e){ f.notas = e.target.value; });
 
     main.querySelectorAll("[data-item-id]").forEach(function(inp){
@@ -567,11 +556,12 @@
     });
     if(items.length===0){ toast("Cargá al menos una cantidad"); return; }
 
-    var payload = { local:f.local, fecha:f.fecha, quienPide:(currentUser&&currentUser.nombre)||"", notas:f.notas||"", items:items };
+    var payload = { local:f.local, fecha:f.fecha, quienPide:(f.quienPide||"").trim(), notas:f.notas||"", items:items };
     var btn = document.getElementById("submitOrder");
     if(btn){ btn.disabled = true; btn.textContent = "Enviando…"; }
     callServer("createPedido", payload).then(function(){
       lsSet("dc_last_local", f.local);
+      lsSet("dc_quien_pide", payload.quienPide);
       state.newOrderForm = null;
       showOrderSuccess(payload);
       loadData(true);
@@ -666,19 +656,15 @@
     if(/[",;\n]/.test(s)) s = '"'+s.replace(/"/g,'""')+'"';
     return s;
   }
-  var ESTADO_ITEM_LABEL = {pendiente:"Pendiente", enviado:"Enviado", no_enviado:"No enviado"};
-
   function exportCsv(list){
     if(!list || list.length===0){ toast("No hay pedidos para exportar"); return; }
-    var header = ["Local","Fecha pedido","Estado pedido","Pidió","Envió","Recibió","Categoría","Ítem","Ítem nuevo","Cant. pedida","Cant. enviada","Cant. recibida","Estado ítem","Motivo","Fecha estimada","Cargado"];
+    var header = ["Local","Fecha","Ítem","Cant. solicitada","Cant. enviada","Cant. recibida"];
     var rows = [header];
     list.forEach(function(p){
       (p.items||[]).forEach(function(it){
         rows.push([
-          LOCAL_LABEL[p.local]||p.local, fmtDate(p.fecha), estadoInfo(p.estado).label,
-          p.quienPide||"", p.enviadoPor||"", p.recibidoPor||"", CAT_LABEL[it.category]||it.category, it.name, it.isExtra?"Sí":"",
-          it.pedidoCant||"", it.envioCant||"", it.recibidoCant||"", ESTADO_ITEM_LABEL[it.estadoItem]||it.estadoItem||"",
-          it.motivo||"", it.fechaEstimada?fmtDate(it.fechaEstimada):"", fmtDateTime(p.createdAt)
+          LOCAL_LABEL[p.local]||p.local, fmtDate(p.fecha), it.name,
+          it.pedidoCant||"", it.envioCant||"", it.recibidoCant||""
         ]);
       });
     });
@@ -714,6 +700,7 @@
       state.editForm = {
         _id: id,
         _mode: mode,
+        quienNombre: mode==="envio" ? lsGet("dc_quien_envia","") : (mode==="recepcion" ? lsGet("dc_quien_recibe","") : ""),
         items: (p.items||[]).map(function(it){
           return {
             id:it.id, category:it.category, name:it.name, isExtra:!!it.isExtra,
@@ -796,6 +783,9 @@
     });
 
     if(mode!=="resumen"){
+      html += '<div class="panel-body" style="border-top:1px dashed var(--border-strong)">';
+      html += fieldInput(mode==="envio"?"¿Quién envía?":"¿Quién recibe?", "quienNombre", "text", f.quienNombre);
+      html += '</div>';
       html += '<div class="panel-body save-bar">';
       html += '<button class="btn btn-primary btn-block" id="saveDetail" type="button">'+(mode==="envio"?"Guardar envío":"Confirmar recepción")+'</button>';
       html += '</div>';
@@ -844,6 +834,8 @@
         if(it) it.fechaEstimada = inp.value;
       });
     });
+    var quienInp = main.querySelector("#quienNombre");
+    if(quienInp) quienInp.addEventListener("input", function(e){ f.quienNombre = e.target.value; });
     var saveBtn = main.querySelector("#saveDetail");
     if(saveBtn) saveBtn.addEventListener("click", function(){ saveDetail(p, mode); });
   }
@@ -862,8 +854,10 @@
           motivo: it.noEnviado ? it.motivo : "", fechaEstimada: it.noEnviado ? it.fechaEstimada : ""
         };
       });
+      var enviadoPor = (f.quienNombre||"").trim();
       if(btn){ btn.disabled=true; btn.textContent="Guardando…"; }
-      callServer("updatePedidoEnvio", {pedidoId:p.id, items:items, enviadoPor:(currentUser&&currentUser.nombre)||""}).then(function(){
+      callServer("updatePedidoEnvio", {pedidoId:p.id, items:items, enviadoPor:enviadoPor}).then(function(){
+        lsSet("dc_quien_envia", enviadoPor);
         toast("Envío guardado");
         state.editForm = null;
         loadData(true);
@@ -876,8 +870,10 @@
       var recItems = f.items.filter(function(it){ return !it.noEnviado; }).map(function(it){
         return { id:it.id, cantRecibida: it.recibidoCant||"" };
       });
+      var recibidoPor = (f.quienNombre||"").trim();
       if(btn){ btn.disabled=true; btn.textContent="Guardando…"; }
-      callServer("updatePedidoRecepcion", {pedidoId:p.id, items:recItems, recibidoPor:(currentUser&&currentUser.nombre)||""}).then(function(){
+      callServer("updatePedidoRecepcion", {pedidoId:p.id, items:recItems, recibidoPor:recibidoPor}).then(function(){
+        lsSet("dc_quien_recibe", recibidoPor);
         toast("Recepción guardada");
         state.editForm = null;
         loadData(true);
@@ -1007,159 +1003,6 @@
     });
   }
 
-  // ---------- TAB: usuarios (alta/baja de accesos, protegido con clave) ----------
-  var usuariosList_ = null; // se carga al desbloquear
-
-  function renderUsuarios(main){
-    var unlocked = state.adminUnlocked;
-
-    if(!unlocked){
-      main.innerHTML = '<div class="banner" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
-        '<span>La gestión de usuarios está limitada a Carolina.</span>'+
-        '<button class="btn btn-ghost btn-sm" id="unlockUsuarios" type="button">🔒 Gestionar usuarios</button>'+
-        '</div>';
-      var unlockBtn = document.getElementById("unlockUsuarios");
-      unlockBtn.addEventListener("click", function(){
-        var pass = window.prompt("Clave de administración:");
-        if(pass==null) return;
-        unlockBtn.disabled = true;
-        callServer("listUsuarios", {password:pass}).then(function(res){
-          adminPassword_ = pass;
-          state.adminUnlocked = true;
-          usuariosList_ = res.usuarios || [];
-          renderUsuarios(main);
-        }).catch(function(err){
-          console.error(err);
-          toast(err && err.message && err.message.indexOf("PERMISO_DENEGADO")!==-1 ? "Clave incorrecta." : "No se pudo verificar la clave.");
-          unlockBtn.disabled = false;
-        });
-      });
-      return;
-    }
-
-    var html = '<div class="banner" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
-      '<span>Cada usuario entra con su propio usuario y clave. Los movimientos quedan registrados a su nombre.</span>'+
-      '<button class="btn btn-ghost btn-sm" id="lockUsuarios" type="button">Salir del modo edición</button>'+
-      '</div>';
-
-    html += '<div class="panel">';
-    (usuariosList_||[]).forEach(function(u){
-      html += '<div class="catalog-item">';
-      html += '<div class="ci-name">'+esc(u.nombre)+' <span class="mono" style="opacity:.7;font-size:12px">('+esc(u.usuario)+(u.rol?' · '+esc(LOCAL_LABEL[u.rol]||u.rol):'')+')</span>'+
-        (u.activo?'':' <span class="tag-extra" style="background:var(--danger-soft);color:var(--danger-ink)">inactivo</span>')+'</div>';
-      html += '<button class="btn btn-ghost btn-sm" data-reset-user="'+u.id+'" type="button" title="Cambiar clave">🔑</button>';
-      html += '<button class="btn btn-ghost btn-sm" data-toggle-user="'+u.id+'" data-activo="'+(u.activo?'0':'1')+'" type="button">'+(u.activo?'Desactivar':'Activar')+'</button>';
-      html += '</div>';
-    });
-    if(!usuariosList_ || usuariosList_.length===0){
-      html += '<div class="empty">Todavía no hay usuarios cargados.</div>';
-    }
-    html += '<div class="panel-body" style="border-top:1px dashed var(--border-strong)">';
-    html += '<div class="row2">';
-    html += fieldInput("Nombre", "nu_nombre", "text", "");
-    html += fieldInput("Usuario", "nu_usuario", "text", "");
-    html += '</div>';
-    html += '<div class="row2">';
-    html += fieldInput("Clave", "nu_clave", "text", "");
-    html += fieldSelect("Rol (opcional)", "nu_rol", [{v:"",l:"Sin rol asignado"}].concat(LOCALES.map(function(l){return {v:l.key,l:l.label};})).concat([{v:"PRODUCCION",l:"Producción"},{v:"ADMIN",l:"Administración"}]), "", false);
-    html += '</div>';
-    html += '<button class="btn btn-primary btn-block" id="addUsuario" type="button">+ Agregar usuario</button>';
-    html += '</div>';
-    html += '</div>';
-
-    main.innerHTML = html;
-
-    document.getElementById("lockUsuarios").addEventListener("click", function(){
-      adminPassword_ = null;
-      state.adminUnlocked = false;
-      usuariosList_ = null;
-      renderUsuarios(main);
-    });
-
-    main.querySelectorAll("[data-toggle-user]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var id = btn.getAttribute("data-toggle-user");
-        var activo = btn.getAttribute("data-activo")==="1";
-        btn.disabled = true;
-        callServer("setUsuarioActivo", {id:id, activo:activo, password:adminPassword_}).then(function(){
-          return callServer("listUsuarios", {password:adminPassword_});
-        }).then(function(res){
-          usuariosList_ = res.usuarios || [];
-          renderUsuarios(main);
-        }).catch(function(err){ console.error(err); toast("No se pudo actualizar el usuario."); btn.disabled=false; });
-      });
-    });
-
-    main.querySelectorAll("[data-reset-user]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var id = btn.getAttribute("data-reset-user");
-        var nueva = window.prompt("Nueva clave para este usuario:");
-        if(!nueva) return;
-        callServer("resetUsuarioClave", {id:id, clave:nueva, password:adminPassword_}).then(function(){
-          toast("Clave actualizada");
-        }).catch(function(err){ console.error(err); toast("No se pudo cambiar la clave."); });
-      });
-    });
-
-    document.getElementById("addUsuario").addEventListener("click", function(){
-      var nombre = document.getElementById("nu_nombre").value.trim();
-      var usuario = document.getElementById("nu_usuario").value.trim();
-      var clave = document.getElementById("nu_clave").value.trim();
-      var rol = document.getElementById("nu_rol").value;
-      if(!nombre || !usuario || !clave){ toast("Completá nombre, usuario y clave"); return; }
-      callServer("createUsuario", {nombre:nombre, usuario:usuario, clave:clave, rol:rol, password:adminPassword_}).then(function(){
-        toast("Usuario creado");
-        return callServer("listUsuarios", {password:adminPassword_});
-      }).then(function(res){
-        usuariosList_ = res.usuarios || [];
-        renderUsuarios(main);
-      }).catch(function(err){ console.error(err); toast("No se pudo crear: "+(err&&err.message?err.message:"probá de nuevo.")); });
-    });
-  }
-
-  // ---------- login ----------
-  function renderLogin(){
-    var main = document.getElementById("main");
-    main.innerHTML =
-      '<div class="panel login-wrap"><div class="panel-body">'+
-      '<h2 style="margin-bottom:4px">Ingresar</h2>'+
-      '<div style="font-size:13px;color:var(--ink-soft);margin-bottom:16px">Usá el usuario y la clave que te dio Carolina.</div>'+
-      '<label class="field"><span class="lbl">Usuario</span><input type="text" id="loginUser" autocomplete="username"></label>'+
-      '<label class="field"><span class="lbl">Clave</span><input type="password" id="loginPass" autocomplete="current-password"></label>'+
-      '<button class="btn btn-primary btn-block" id="loginBtn" type="button">Ingresar</button>'+
-      '</div></div>';
-
-    function doLogin(){
-      var u = document.getElementById("loginUser").value.trim();
-      var p = document.getElementById("loginPass").value;
-      if(!u || !p){ toast("Completá usuario y clave"); return; }
-      var btn = document.getElementById("loginBtn");
-      btn.disabled = true; btn.textContent = "Ingresando…";
-      callServer("login", {usuario:u, clave:p}).then(function(user){
-        currentUser = user;
-        saveCurrentUser(user);
-        showLoggedInChrome(true);
-        loadData(false);
-      }).catch(function(err){
-        console.error(err);
-        toast(err && err.message && err.message.indexOf("CREDENCIALES_INVALIDAS")!==-1 ? "Usuario o clave incorrectos." : "No se pudo ingresar: "+(err&&err.message?err.message:"probá de nuevo."));
-        btn.disabled = false; btn.textContent = "Ingresar";
-      });
-    }
-    document.getElementById("loginBtn").addEventListener("click", doLogin);
-    document.getElementById("loginPass").addEventListener("keydown", function(e){ if(e.key==="Enter") doLogin(); });
-  }
-
-  function logout(){
-    clearCurrentUser();
-    currentUser = null;
-    state.tab = "nuevo"; state.detailId = null; state.editForm = null; state.newOrderForm = null;
-    state.adminUnlocked = false; adminPassword_ = null; usuariosList_ = null;
-    loaded = false;
-    showLoggedInChrome(false);
-    renderLogin();
-  }
-
   // ---------- nav / refresh ----------
   document.getElementById("tabs").addEventListener("click", function(e){
     var btn = e.target.closest("button[data-tab]");
@@ -1171,17 +1014,9 @@
   document.getElementById("refreshBtn").addEventListener("click", function(){
     loadData(false);
   });
-  document.getElementById("logoutBtn").addEventListener("click", logout);
 
   // ---------- boot ----------
-  currentUser = loadCurrentUser();
-  if(currentUser){
-    showLoggedInChrome(true);
-    loadData(false);
-  } else {
-    showLoggedInChrome(false);
-    renderLogin();
-  }
+  loadData(false);
 })();
 </script>
 </body>
