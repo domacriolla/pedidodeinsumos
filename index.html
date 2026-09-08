@@ -126,16 +126,19 @@
   .item-row:first-of-type{ border-top:none; }
   .item-name{ flex:1; font-size:14px; line-height:1.3; }
   .item-name .tag-extra{ font-size:10px; font-weight:700; color:var(--success-ink); background:var(--success-soft); border-radius:4px; padding:1px 5px; margin-left:6px; vertical-align:middle; }
-  .qty-input{ width:54px; flex:none; text-align:center; font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:15px; padding:8px 4px; min-height:38px; }
+  input[type=text].qty-input{ width:54px; flex:none; text-align:center; font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:15px; padding:8px 4px; min-height:38px; }
   .rm-btn{ flex:none; width:30px; height:30px; border-radius:7px; border:1px solid var(--border-strong); background:var(--surface-alt); color:var(--danger); cursor:pointer; font-size:15px; line-height:1; }
 
   .extra-add{ display:flex; gap:8px; padding:10px 16px 14px; }
   .extra-add input[type=text]{ flex:1; }
-  .extra-add .qty-input{ width:54px; }
+  .extra-add input[type=text].qty-input{ width:54px; }
 
   .badge{ font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; padding:3px 8px; border-radius:99px; white-space:nowrap; }
   .badge-pending{ background:var(--pending-soft); color:var(--pending-ink); }
+  .badge-sent{ background:var(--accent-soft); color:var(--accent-soft-ink); }
   .badge-closed{ background:var(--success-soft); color:var(--success-ink); }
+  .idr-readonly{ font-size:13px; color:var(--ink-soft); padding:2px 0; }
+  .idr-readonly b{ color:var(--ink); font-weight:600; }
 
   .filters{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border); }
   .filters select{ width:auto; min-height:36px; padding:6px 10px; font-size:13px; }
@@ -196,6 +199,19 @@
   .success-screen p{ color:var(--ink-soft); font-size:14px; margin:0 0 20px; }
 
   ::selection{ background:var(--accent-soft); }
+
+  .print-sheet{ display:none; }
+  @media print{
+    body > *:not(.print-sheet){ display:none !important; }
+    .print-sheet{ display:block !important; padding:10px; color:#111; font-family:'IBM Plex Sans',sans-serif; }
+    .print-sheet h1{ font-size:18px; margin:0 0 6px; font-family:'Archivo',sans-serif; }
+    .print-sheet .ps-meta{ font-size:12.5px; color:#333; margin-bottom:4px; }
+    .print-sheet .ps-cat{ font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin:16px 0 4px; border-bottom:1px solid #999; padding-bottom:3px; }
+    .print-sheet .ps-item{ display:flex; align-items:center; gap:10px; padding:5px 0; font-size:13px; border-bottom:1px dotted #ccc; }
+    .print-sheet .ps-check{ width:13px; height:13px; border:1.4px solid #333; flex:none; }
+    .print-sheet .ps-name{ flex:1; }
+    .print-sheet .ps-qty{ font-weight:700; font-family:'IBM Plex Mono',monospace; min-width:30px; text-align:right; }
+  }
 </style>
 </head>
 <body>
@@ -222,6 +238,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="print-sheet" id="printSheet"></div>
 
 <script>
 (function(){
@@ -374,7 +391,7 @@
     document.querySelectorAll("#tabs button").forEach(function(b){
       b.classList.toggle("active", b.getAttribute("data-tab")===state.tab);
     });
-    var pendCount = pedidos.filter(function(p){ return p.estado==="pendiente"; }).length;
+    var pendCount = pedidos.filter(function(p){ return p.estado==="pendiente" || p.estado==="enviado"; }).length;
     var pc = document.getElementById("pendingCount");
     if(pendCount>0){ pc.style.display="inline-block"; pc.textContent=pendCount; }
     else { pc.style.display="none"; }
@@ -560,11 +577,20 @@
   }
 
   // ---------- TAB: Pedidos y envíos (lista) ----------
+  var ESTADO_PEDIDO_INFO = {
+    pendiente: {cls:"badge-pending", label:"Pendiente"},
+    enviado: {cls:"badge-sent", label:"Esperando recepción"},
+    cerrado: {cls:"badge-closed", label:"Cerrado"}
+  };
+  function estadoInfo(estado){
+    return ESTADO_PEDIDO_INFO[estado] || ESTADO_PEDIDO_INFO.pendiente;
+  }
+
   function renderLista(main){
     var html = '<div class="panel">';
     html += '<div class="filters">';
     html += '<select id="filtEstado">';
-    [["pendiente","Pendientes"],["cerrado","Cerrados"],["todos","Todos"]].forEach(function(o){
+    [["pendiente","Pendientes"],["enviado","Esperando recepción"],["cerrado","Cerrados"],["todos","Todos"]].forEach(function(o){
       html += '<option value="'+o[0]+'"'+(state.filterEstado===o[0]?" selected":"")+'>'+o[1]+'</option>';
     });
     html += '</select>';
@@ -596,7 +622,7 @@
         html += '<div class="oc-local">'+esc(LOCAL_LABEL[p.local]||p.local)+' · '+esc(fmtDate(p.fecha))+'</div>';
         html += '<div class="oc-sub">'+esc(subParts.join(" · "))+'</div>';
         html += '</div>';
-        html += '<span class="badge '+(p.estado==="cerrado"?"badge-closed":"badge-pending")+'">'+(p.estado==="cerrado"?"Cerrado":"Pendiente")+'</span>';
+        html += '<span class="badge '+estadoInfo(p.estado).cls+'">'+estadoInfo(p.estado).label+'</span>';
         html += '<span class="oc-arrow">›</span>';
         html += '</div>';
       });
@@ -626,14 +652,14 @@
 
   function exportCsv(list){
     if(!list || list.length===0){ toast("No hay pedidos para exportar"); return; }
-    var header = ["Local","Fecha pedido","Estado pedido","Quién pide","Categoría","Ítem","Ítem nuevo","Cant. pedida","Cant. enviada","Estado ítem","Motivo","Fecha estimada","Cargado"];
+    var header = ["Local","Fecha pedido","Estado pedido","Quién pide","Categoría","Ítem","Ítem nuevo","Cant. pedida","Cant. enviada","Cant. recibida","Estado ítem","Motivo","Fecha estimada","Cargado"];
     var rows = [header];
     list.forEach(function(p){
       (p.items||[]).forEach(function(it){
         rows.push([
-          LOCAL_LABEL[p.local]||p.local, fmtDate(p.fecha), p.estado==="cerrado"?"Cerrado":"Pendiente",
+          LOCAL_LABEL[p.local]||p.local, fmtDate(p.fecha), estadoInfo(p.estado).label,
           p.quienPide||"", CAT_LABEL[it.category]||it.category, it.name, it.isExtra?"Sí":"",
-          it.pedidoCant||"", it.envioCant||"", ESTADO_ITEM_LABEL[it.estadoItem]||it.estadoItem||"",
+          it.pedidoCant||"", it.envioCant||"", it.recibidoCant||"", ESTADO_ITEM_LABEL[it.estadoItem]||it.estadoItem||"",
           it.motivo||"", it.fechaEstimada?fmtDate(it.fechaEstimada):"", fmtDateTime(p.createdAt)
         ]);
       });
@@ -660,13 +686,21 @@
   function renderDetail(main, id){
     var p = pedidos.find(function(x){ return x.id===id; });
     if(!p){ state.detailId = null; return renderLista(main); }
-    if(!state.editForm || state.editForm._id!==id){
+    // Tres etapas según el estado del pedido:
+    //  "pendiente" -> producción arma y marca qué se envía (o no)
+    //  "enviado"   -> el local confirma qué recibió realmente
+    //  "cerrado"   -> ya está todo confirmado, solo se muestra un resumen
+    var mode = p.estado==="pendiente" ? "envio" : (p.estado==="enviado" ? "recepcion" : "resumen");
+
+    if(!state.editForm || state.editForm._id!==id || state.editForm._mode!==mode){
       state.editForm = {
         _id: id,
+        _mode: mode,
         items: (p.items||[]).map(function(it){
           return {
             id:it.id, category:it.category, name:it.name, isExtra:!!it.isExtra,
             pedidoCant: it.pedidoCant, envioCant: it.envioCant||"",
+            recibidoCant: it.recibidoCant||"",
             noEnviado: it.estadoItem==="no_enviado",
             motivo: it.motivo||"", fechaEstimada: it.fechaEstimada||""
           };
@@ -680,15 +714,20 @@
 
     var html = '<div class="panel">';
     html += '<div class="detail-head">';
-    html += '<button class="back" id="backBtn" type="button">‹ Volver a la lista</button>';
-    html += '<h2>'+esc(LOCAL_LABEL[p.local]||p.local)+'</h2>';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">';
+    html += '<button class="back" id="backBtn" type="button" style="padding-bottom:0">‹ Volver a la lista</button>';
+    html += '<button class="btn btn-ghost btn-sm" id="printBtn" type="button">🖶 Imprimir</button>';
+    html += '</div>';
+    html += '<h2 style="margin-top:8px">'+esc(LOCAL_LABEL[p.local]||p.local)+'</h2>';
     html += '<div class="detail-grid" style="margin-top:8px">';
     html += '<span><b>Fecha:</b> '+esc(fmtDate(p.fecha))+'</span>';
     if(p.quienPide) html += '<span><b>Pide:</b> '+esc(p.quienPide)+'</span>';
     html += '<span><b>Cargado:</b> '+esc(fmtDateTime(p.createdAt))+'</span>';
-    html += '<span class="badge '+(p.estado==="cerrado"?"badge-closed":"badge-pending")+'">'+(p.estado==="cerrado"?"Cerrado":"Pendiente")+'</span>';
+    html += '<span class="badge '+estadoInfo(p.estado).cls+'">'+estadoInfo(p.estado).label+'</span>';
     html += '</div>';
     if(p.notas) html += '<div class="detail-grid" style="margin-top:6px"><span><b>Notas:</b> '+esc(p.notas)+'</span></div>';
+    if(mode==="recepcion") html += '<div class="banner" style="margin:12px 0 0">Registrá acá lo que llegó realmente al local. Lo que falte queda en blanco.</div>';
+    if(mode==="resumen") html += '<div class="banner" style="margin:12px 0 0">Pedido cerrado: ya está confirmado lo pedido, lo enviado y lo recibido.</div>';
     html += '</div>';
 
     CATEGORIES.forEach(function(c){
@@ -702,24 +741,45 @@
         html += '<div class="idr-top">';
         html += '<div class="idr-name">'+esc(it.name)+(it.isExtra?'<span class="tag-extra">nuevo</span>':'')+'<div class="idr-pedido">Pedido: <span class="mono">'+esc(it.pedidoCant)+'</span></div></div>';
         html += '</div>';
-        html += '<div class="idr-controls">';
-        html += '<input class="qty-input" type="text" inputmode="numeric" placeholder="enviado" data-envio="'+esc(it.id)+'" value="'+esc(it.envioCant)+'" '+(it.noEnviado?"disabled":"")+'>';
-        html += '<label class="chk"><input type="checkbox" data-noenv="'+esc(it.id)+'" '+(it.noEnviado?"checked":"")+'> No se envía</label>';
-        html += '</div>';
-        if(it.noEnviado){
-          html += '<div class="idr-motivo">';
-          html += '<input type="text" placeholder="Motivo (ej: sin stock)" data-motivo="'+esc(it.id)+'" value="'+esc(it.motivo)+'">';
-          html += '<input type="date" data-festimada="'+esc(it.id)+'" value="'+esc(it.fechaEstimada)+'">';
+
+        if(mode==="envio"){
+          html += '<div class="idr-controls">';
+          html += '<input class="qty-input" type="text" inputmode="numeric" placeholder="cant." data-envio="'+esc(it.id)+'" value="'+esc(it.envioCant)+'" '+(it.noEnviado?"disabled":"")+'>';
+          html += '<label class="chk"><input type="checkbox" data-noenv="'+esc(it.id)+'" '+(it.noEnviado?"checked":"")+'> No se envía</label>';
           html += '</div>';
+          if(it.noEnviado){
+            html += '<div class="idr-motivo">';
+            html += '<input type="text" placeholder="Motivo (ej: sin stock)" data-motivo="'+esc(it.id)+'" value="'+esc(it.motivo)+'">';
+            html += '<input type="date" data-festimada="'+esc(it.id)+'" value="'+esc(it.fechaEstimada)+'">';
+            html += '</div>';
+          }
+        } else if(mode==="recepcion"){
+          if(it.noEnviado){
+            html += '<div class="idr-readonly">No se envió'+(it.motivo?' — <b>'+esc(it.motivo)+'</b>':'')+(it.fechaEstimada?' (estimado: '+esc(fmtDate(it.fechaEstimada))+')':'')+'</div>';
+          } else {
+            html += '<div class="idr-controls">';
+            html += '<span class="idr-readonly">Enviado: <b>'+esc(it.envioCant)+'</b></span>';
+            html += '<input class="qty-input" type="text" inputmode="numeric" placeholder="cant." data-recibido="'+esc(it.id)+'" value="'+esc(it.recibidoCant)+'">';
+            html += '<span class="idr-readonly">recibido</span>';
+            html += '</div>';
+          }
+        } else {
+          if(it.noEnviado){
+            html += '<div class="idr-readonly">No se envió'+(it.motivo?' — <b>'+esc(it.motivo)+'</b>':'')+(it.fechaEstimada?' (estimado: '+esc(fmtDate(it.fechaEstimada))+')':'')+'</div>';
+          } else {
+            html += '<div class="idr-readonly">Enviado: <b>'+esc(it.envioCant||"—")+'</b> &nbsp;·&nbsp; Recibido: <b>'+esc(it.recibidoCant||"—")+'</b></div>';
+          }
         }
         html += '</div>';
       });
       html += '</div>';
     });
 
-    html += '<div class="panel-body save-bar">';
-    html += '<button class="btn btn-primary btn-block" id="saveDetail" type="button">Guardar envío</button>';
-    html += '</div>';
+    if(mode!=="resumen"){
+      html += '<div class="panel-body save-bar">';
+      html += '<button class="btn btn-primary btn-block" id="saveDetail" type="button">'+(mode==="envio"?"Guardar envío":"Confirmar recepción")+'</button>';
+      html += '</div>';
+    }
     html += '</div>';
 
     main.innerHTML = html;
@@ -727,11 +787,19 @@
     main.querySelector("#backBtn").addEventListener("click", function(){
       state.detailId = null; state.editForm = null; render();
     });
+    main.querySelector("#printBtn").addEventListener("click", function(){ printPedido(p); });
     main.querySelectorAll("[data-envio]").forEach(function(inp){
       inp.addEventListener("input", function(){
         var id = inp.getAttribute("data-envio");
         var it = f.items.find(function(x){return x.id===id;});
         if(it) it.envioCant = inp.value;
+      });
+    });
+    main.querySelectorAll("[data-recibido]").forEach(function(inp){
+      inp.addEventListener("input", function(){
+        var id = inp.getAttribute("data-recibido");
+        var it = f.items.find(function(x){return x.id===id;});
+        if(it) it.recibidoCant = inp.value;
       });
     });
     main.querySelectorAll("[data-noenv]").forEach(function(chk){
@@ -756,32 +824,69 @@
         if(it) it.fechaEstimada = inp.value;
       });
     });
-    main.querySelector("#saveDetail").addEventListener("click", function(){ saveDetail(p); });
+    var saveBtn = main.querySelector("#saveDetail");
+    if(saveBtn) saveBtn.addEventListener("click", function(){ saveDetail(p, mode); });
   }
 
-  function saveDetail(p){
+  function saveDetail(p, mode){
     var f = state.editForm;
-    var items = f.items.map(function(it){
-      var estadoItem = "pendiente";
-      if(it.noEnviado){ estadoItem = "no_enviado"; }
-      else if(it.envioCant && it.envioCant.trim()!==""){ estadoItem = "enviado"; }
-      return {
-        id:it.id, envioCant:it.envioCant||"", estadoItem: estadoItem,
-        motivo: it.noEnviado ? it.motivo : "", fechaEstimada: it.noEnviado ? it.fechaEstimada : ""
-      };
-    });
-
     var btn = document.getElementById("saveDetail");
-    if(btn){ btn.disabled=true; btn.textContent="Guardando…"; }
-    callServer("updatePedidoEnvio", {pedidoId:p.id, items:items}).then(function(){
-      toast("Envío guardado");
-      state.editForm = null;
-      loadData(true);
-    }).catch(function(err){
-      console.error(err);
-      toast("No se pudo guardar. Probá de nuevo.");
-      if(btn){ btn.disabled=false; btn.textContent="Guardar envío"; }
+
+    if(mode==="envio"){
+      var items = f.items.map(function(it){
+        var estadoItem = "pendiente";
+        if(it.noEnviado){ estadoItem = "no_enviado"; }
+        else if(it.envioCant && it.envioCant.trim()!==""){ estadoItem = "enviado"; }
+        return {
+          id:it.id, envioCant:it.envioCant||"", estadoItem: estadoItem,
+          motivo: it.noEnviado ? it.motivo : "", fechaEstimada: it.noEnviado ? it.fechaEstimada : ""
+        };
+      });
+      if(btn){ btn.disabled=true; btn.textContent="Guardando…"; }
+      callServer("updatePedidoEnvio", {pedidoId:p.id, items:items}).then(function(){
+        toast("Envío guardado");
+        state.editForm = null;
+        loadData(true);
+      }).catch(function(err){
+        console.error(err);
+        toast("No se pudo guardar: "+(err&&err.message?err.message:"probá de nuevo."));
+        if(btn){ btn.disabled=false; btn.textContent="Guardar envío"; }
+      });
+    } else {
+      var recItems = f.items.filter(function(it){ return !it.noEnviado; }).map(function(it){
+        return { id:it.id, cantRecibida: it.recibidoCant||"" };
+      });
+      if(btn){ btn.disabled=true; btn.textContent="Guardando…"; }
+      callServer("updatePedidoRecepcion", {pedidoId:p.id, items:recItems}).then(function(){
+        toast("Recepción guardada");
+        state.editForm = null;
+        loadData(true);
+      }).catch(function(err){
+        console.error(err);
+        toast("No se pudo guardar: "+(err&&err.message?err.message:"probá de nuevo."));
+        if(btn){ btn.disabled=false; btn.textContent="Confirmar recepción"; }
+      });
+    }
+  }
+
+  // ---------- imprimir pedido (para armar en depósito) ----------
+  function printPedido(p){
+    var byCat = groupByCategory(p.items||[]);
+    var html = '<h1>Pedido de Insumos — '+esc(LOCAL_LABEL[p.local]||p.local)+'</h1>';
+    html += '<div class="ps-meta">Fecha: '+esc(fmtDate(p.fecha))+(p.quienPide?' &nbsp;·&nbsp; Pide: '+esc(p.quienPide):'')+'</div>';
+    if(p.notas) html += '<div class="ps-meta">Notas: '+esc(p.notas)+'</div>';
+    CATEGORIES.forEach(function(c){
+      var list = (byCat[c.key]||[]).filter(function(it){ return it.pedidoCant && String(it.pedidoCant).trim()!==""; });
+      if(list.length===0) return;
+      html += '<div class="ps-cat">'+esc(c.label)+'</div>';
+      list.forEach(function(it){
+        html += '<div class="ps-item"><span class="ps-check"></span><span class="ps-name">'+esc(it.name)+(it.isExtra?' (nuevo)':'')+'</span><span class="ps-qty">'+esc(it.pedidoCant)+'</span></div>';
+      });
     });
+    html += '<div class="ps-meta" style="margin-top:22px">Preparado por: _______________________ &nbsp;&nbsp; Fecha: ___/___/___</div>';
+    var sheet = document.getElementById("printSheet");
+    sheet.innerHTML = html;
+    window.print();
   }
 
   // ---------- TAB: catálogo (protegido con clave) ----------
