@@ -908,7 +908,7 @@
   // ---------- TAB: catálogo (protegido con clave) ----------
   function permMsg(err, action){
     if(err && err.message && err.message.indexOf("PERMISO_DENEGADO")!==-1){
-      return "Clave incorrecta: esta edición del catálogo está limitada a Carolina.";
+      return "Clave incorrecta: la edición del catálogo está restringida.";
     }
     return "No se pudo "+action+". Probá de nuevo.";
   }
@@ -921,8 +921,7 @@
     var html = '';
 
     if(!unlocked){
-      html += '<div class="banner" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
-        '<span>Esta lista es de referencia. Agregar o quitar ítems está limitado a Carolina.</span>'+
+      html += '<div style="display:flex;justify-content:flex-end;margin-bottom:14px">'+
         '<button class="btn btn-ghost btn-sm" id="unlockCatalog" type="button">🔒 Editar catálogo</button>'+
         '</div>';
     } else {
