@@ -126,12 +126,12 @@
   .item-row:first-of-type{ border-top:none; }
   .item-name{ flex:1; font-size:14px; line-height:1.3; }
   .item-name .tag-extra{ font-size:10px; font-weight:700; color:var(--success-ink); background:var(--success-soft); border-radius:4px; padding:1px 5px; margin-left:6px; vertical-align:middle; }
-  .qty-input{ width:84px; flex:none; text-align:right; font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:14px; padding:8px 9px; min-height:38px; }
+  .qty-input{ width:54px; flex:none; text-align:center; font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:15px; padding:8px 4px; min-height:38px; }
   .rm-btn{ flex:none; width:30px; height:30px; border-radius:7px; border:1px solid var(--border-strong); background:var(--surface-alt); color:var(--danger); cursor:pointer; font-size:15px; line-height:1; }
 
   .extra-add{ display:flex; gap:8px; padding:10px 16px 14px; }
   .extra-add input[type=text]{ flex:1; }
-  .extra-add .qty-input{ width:76px; }
+  .extra-add .qty-input{ width:54px; }
 
   .badge{ font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; padding:3px 8px; border-radius:99px; white-space:nowrap; }
   .badge-pending{ background:var(--pending-soft); color:var(--pending-ink); }
@@ -261,7 +261,8 @@
     newOrderForm: null,
     editForm: null,
     filterEstado: "pendiente",
-    filterLocal: "TODOS"
+    filterLocal: "TODOS",
+    catalogUnlocked: false
   };
 
   // ---------- server bridge (fetch a la API de Apps Script) ----------
@@ -273,17 +274,17 @@
     if(!apiConfigured()){
       return Promise.reject(new Error("Falta configurar API_URL en Index.html con el link de Apps Script."));
     }
-    if(action === "getData"){
-      return fetch(API_URL + "?action=getData", {method:"GET"})
-        .then(function(r){ return r.json(); })
-        .then(checkApiError_);
+    // Todo viaja por GET (incluso para guardar/editar): Apps Script redirige
+    // internamente sus respuestas, y ese redirect descarta el "body" de un
+    // POST antes de que llegue al servidor. Mandando todo por GET, con los
+    // datos codificados en la URL, evitamos ese problema por completo.
+    var url = API_URL + "?action=" + encodeURIComponent(action);
+    if(action !== "getData"){
+      url += "&payload=" + encodeURIComponent(JSON.stringify(payload||{}));
     }
-    var body = Object.assign({action:action}, payload||{});
-    return fetch(API_URL, {
-      method:"POST",
-      headers: {"Content-Type":"text/plain;charset=utf-8"}, // evita el preflight CORS
-      body: JSON.stringify(body)
-    }).then(function(r){ return r.json(); }).then(checkApiError_);
+    return fetch(url, {method:"GET"})
+      .then(function(r){ return r.json(); })
+      .then(checkApiError_);
   }
 
   function checkApiError_(data){
@@ -541,7 +542,7 @@
       loadData(true);
     }).catch(function(err){
       console.error(err);
-      toast("No se pudo enviar. Probá de nuevo.");
+      toast("No se pudo enviar: "+(err&&err.message?err.message:"probá de nuevo."));
       if(btn){ btn.disabled=false; btn.textContent="Enviar pedido"; }
     });
   }
@@ -791,9 +792,25 @@
     return "No se pudo "+action+". Probá de nuevo.";
   }
 
+  var adminPassword_ = null; // solo en memoria; se pierde al recargar la página
+
   function renderCatalogo(main){
     var byCat = groupByCategory(catalogItems);
-    var html = '<div class="banner">Agregar o quitar ítems acá cambia la lista para los <b>próximos</b> pedidos (pide una clave). Los pedidos ya cargados no se modifican.</div>';
+    var unlocked = state.catalogUnlocked;
+    var html = '';
+
+    if(!unlocked){
+      html += '<div class="banner" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
+        '<span>Esta lista es de referencia. Agregar o quitar ítems está limitado a Carolina.</span>'+
+        '<button class="btn btn-ghost btn-sm" id="unlockCatalog" type="button">🔒 Editar catálogo</button>'+
+        '</div>';
+    } else {
+      html += '<div class="banner" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
+        '<span>Modo edición activo. Los cambios aplican a los <b>próximos</b> pedidos; los ya cargados no se modifican.</span>'+
+        '<button class="btn btn-ghost btn-sm" id="lockCatalog" type="button">Salir del modo edición</button>'+
+        '</div>';
+    }
+
     CATEGORIES.forEach(function(c){
       var list = byCat[c.key].slice().sort(function(a,b){ return (a.order||0)-(b.order||0) || a.name.localeCompare(b.name); });
       html += '<div class="panel"><div class="cat-block">';
@@ -801,23 +818,50 @@
       list.forEach(function(it){
         html += '<div class="catalog-item">';
         html += '<div class="ci-name">'+esc(it.name)+'</div>';
-        html += '<button class="rm-btn" data-del-item="'+it.id+'" title="Eliminar" type="button">×</button>';
+        if(unlocked) html += '<button class="rm-btn" data-del-item="'+it.id+'" title="Eliminar" type="button">×</button>';
         html += '</div>';
       });
-      html += '<div class="catalog-add">';
-      html += '<input type="text" placeholder="Nuevo ítem en '+esc(c.label)+'…" data-newcat="'+c.key+'">';
-      html += '<button class="btn btn-ghost btn-sm" data-addcat="'+c.key+'" type="button">+ Agregar</button>';
-      html += '</div>';
+      if(unlocked){
+        html += '<div class="catalog-add">';
+        html += '<input type="text" placeholder="Nuevo ítem en '+esc(c.label)+'…" data-newcat="'+c.key+'">';
+        html += '<button class="btn btn-ghost btn-sm" data-addcat="'+c.key+'" type="button">+ Agregar</button>';
+        html += '</div>';
+      }
       html += '</div></div>';
     });
     main.innerHTML = html;
 
+    var unlockBtn = document.getElementById("unlockCatalog");
+    if(unlockBtn){
+      unlockBtn.addEventListener("click", function(){
+        var pass = window.prompt("Clave para editar el catálogo:");
+        if(pass==null) return;
+        unlockBtn.disabled = true;
+        callServer("checkAdmin", {password:pass}).then(function(res){
+          if(res && res.ok){
+            adminPassword_ = pass;
+            state.catalogUnlocked = true;
+            renderCatalogo(main);
+          } else {
+            toast("Clave incorrecta.");
+            unlockBtn.disabled = false;
+          }
+        }).catch(function(err){ console.error(err); toast("No se pudo verificar la clave."); unlockBtn.disabled=false; });
+      });
+    }
+    var lockBtn = document.getElementById("lockCatalog");
+    if(lockBtn){
+      lockBtn.addEventListener("click", function(){
+        adminPassword_ = null;
+        state.catalogUnlocked = false;
+        renderCatalogo(main);
+      });
+    }
+
     main.querySelectorAll("[data-del-item]").forEach(function(btn){
       btn.addEventListener("click", function(){
         var id = btn.getAttribute("data-del-item");
-        var pass = window.prompt("Clave para editar el catálogo:");
-        if(pass==null) return;
-        callServer("deleteCatalogItem", {id:id, password:pass}).then(function(){
+        callServer("deleteCatalogItem", {id:id, password:adminPassword_}).then(function(){
           toast("Ítem eliminado");
           loadData(true);
         }).catch(function(err){ console.error(err); toast(permMsg(err, "eliminar")); });
@@ -829,9 +873,7 @@
         var input = main.querySelector('[data-newcat="'+cat+'"]');
         var name = (input.value||"").trim();
         if(!name){ input.focus(); return; }
-        var pass = window.prompt("Clave para editar el catálogo:");
-        if(pass==null) return;
-        callServer("addCatalogItem", {categoria:cat, nombre:name, password:pass}).then(function(){
+        callServer("addCatalogItem", {categoria:cat, nombre:name, password:adminPassword_}).then(function(){
           input.value="";
           toast("Ítem agregado");
           loadData(true);
