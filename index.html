@@ -187,9 +187,11 @@
 
   .save-bar{ position:sticky; bottom:0; background:var(--bg); padding:12px 0 4px; border-top:1px solid var(--border); display:flex; gap:10px; }
 
-  .catalog-item{ display:flex; align-items:center; gap:10px; padding:7px 16px; border-top:1px solid var(--border); }
+  .catalog-item{ display:flex; align-items:center; gap:10px; padding:7px 16px; border-top:1px solid var(--border); flex-wrap:wrap; }
   .catalog-item:first-of-type{ border-top:none; }
-  .catalog-item .ci-name{ flex:1; font-size:14px; }
+  .catalog-item .ci-name{ flex:1; font-size:14px; min-width:120px; }
+  .catalog-item .ci-controls{ display:flex; align-items:center; gap:6px; margin-left:auto; }
+  select.ci-cat-select{ width:auto; min-height:30px; padding:4px 6px; font-size:12px; }
   .catalog-add{ display:flex; gap:8px; padding:10px 16px 14px; }
   .catalog-add input{ flex:1; }
 
@@ -686,6 +688,18 @@
     }
   }
 
+  // Ítem marcado "no se envía": muestra el motivo/estimado y, si el
+  // pedido ya avanzó (esperando recepción o cerrado), un mini-formulario
+  // para reflotarlo apenas producción efectivamente lo manda.
+  function noEnviadoHtml(it){
+    var html = '<div class="idr-readonly">No se envió'+(it.motivo?' — <b>'+esc(it.motivo)+'</b>':'')+(it.fechaEstimada?' (estimado: '+esc(fmtDate(it.fechaEstimada))+')':'')+'</div>';
+    html += '<div class="idr-controls" style="margin-top:8px">';
+    html += '<input class="qty-input" type="text" inputmode="numeric" placeholder="cant." data-reenvio-qty="'+esc(it.id)+'">';
+    html += '<button class="btn btn-ghost btn-sm" data-reenviar="'+esc(it.id)+'" type="button">Ya se mandó</button>';
+    html += '</div>';
+    return html;
+  }
+
   // ---------- TAB: detalle de pedido (envío) ----------
   function renderDetail(main, id){
     var p = pedidos.find(function(x){ return x.id===id; });
@@ -762,7 +776,7 @@
           }
         } else if(mode==="recepcion"){
           if(it.noEnviado){
-            html += '<div class="idr-readonly">No se envió'+(it.motivo?' — <b>'+esc(it.motivo)+'</b>':'')+(it.fechaEstimada?' (estimado: '+esc(fmtDate(it.fechaEstimada))+')':'')+'</div>';
+            html += noEnviadoHtml(it);
           } else {
             html += '<div class="idr-controls">';
             html += '<span class="idr-readonly">Enviado: <b>'+esc(it.envioCant)+'</b></span>';
@@ -772,7 +786,7 @@
           }
         } else {
           if(it.noEnviado){
-            html += '<div class="idr-readonly">No se envió'+(it.motivo?' — <b>'+esc(it.motivo)+'</b>':'')+(it.fechaEstimada?' (estimado: '+esc(fmtDate(it.fechaEstimada))+')':'')+'</div>';
+            html += noEnviadoHtml(it);
           } else {
             html += '<div class="idr-readonly">Enviado: <b>'+esc(it.envioCant||"—")+'</b> &nbsp;·&nbsp; Recibido: <b>'+esc(it.recibidoCant||"—")+'</b></div>';
           }
@@ -838,6 +852,25 @@
     if(quienInp) quienInp.addEventListener("input", function(e){ f.quienNombre = e.target.value; });
     var saveBtn = main.querySelector("#saveDetail");
     if(saveBtn) saveBtn.addEventListener("click", function(){ saveDetail(p, mode); });
+
+    main.querySelectorAll("[data-reenviar]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var id = btn.getAttribute("data-reenviar");
+        var qtyInp = main.querySelector('[data-reenvio-qty="'+id+'"]');
+        var qty = qtyInp ? qtyInp.value.trim() : "";
+        if(!qty){ toast("Cargá la cantidad que se manda"); if(qtyInp) qtyInp.focus(); return; }
+        btn.disabled = true;
+        callServer("reenviarItem", {pedidoId:p.id, itemId:id, envioCant:qty}).then(function(){
+          toast("Ítem reenviado. El pedido vuelve a esperar recepción.");
+          state.editForm = null;
+          loadData(true);
+        }).catch(function(err){
+          console.error(err);
+          toast("No se pudo actualizar: "+(err&&err.message?err.message:"probá de nuevo."));
+          btn.disabled = false;
+        });
+      });
+    });
   }
 
   function saveDetail(p, mode){
@@ -935,10 +968,21 @@
       var list = byCat[c.key].slice().sort(function(a,b){ return (a.order||0)-(b.order||0) || a.name.localeCompare(b.name); });
       html += '<div class="panel"><div class="cat-block">';
       html += '<div class="cat-title">'+esc(c.label)+' <span class="mono" style="font-weight:500;opacity:.7">('+list.length+')</span></div>';
-      list.forEach(function(it){
+      list.forEach(function(it, idx){
         html += '<div class="catalog-item">';
         html += '<div class="ci-name">'+esc(it.name)+'</div>';
-        if(unlocked) html += '<button class="rm-btn" data-del-item="'+it.id+'" title="Eliminar" type="button">×</button>';
+        if(unlocked){
+          html += '<div class="ci-controls">';
+          html += '<button class="rm-btn" data-move-up="'+it.id+'" title="Subir" type="button" '+(idx===0?"disabled":"")+'>↑</button>';
+          html += '<button class="rm-btn" data-move-down="'+it.id+'" title="Bajar" type="button" '+(idx===list.length-1?"disabled":"")+'>↓</button>';
+          html += '<select class="ci-cat-select" data-move-cat="'+it.id+'" title="Cambiar de categoría">';
+          CATEGORIES.forEach(function(c2){
+            html += '<option value="'+c2.key+'"'+(c2.key===c.key?" selected":"")+'>'+esc(c2.label)+'</option>';
+          });
+          html += '</select>';
+          html += '<button class="rm-btn" data-del-item="'+it.id+'" title="Eliminar" type="button">×</button>';
+          html += '</div>';
+        }
         html += '</div>';
       });
       if(unlocked){
@@ -985,6 +1029,34 @@
           toast("Ítem eliminado");
           loadData(true);
         }).catch(function(err){ console.error(err); toast(permMsg(err, "eliminar")); });
+      });
+    });
+    main.querySelectorAll("[data-move-up]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        if(btn.disabled) return;
+        var id = btn.getAttribute("data-move-up");
+        callServer("moveCatalogItem", {id:id, direction:"up", password:adminPassword_}).then(function(){
+          loadData(true);
+        }).catch(function(err){ console.error(err); toast(permMsg(err, "mover")); });
+      });
+    });
+    main.querySelectorAll("[data-move-down]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        if(btn.disabled) return;
+        var id = btn.getAttribute("data-move-down");
+        callServer("moveCatalogItem", {id:id, direction:"down", password:adminPassword_}).then(function(){
+          loadData(true);
+        }).catch(function(err){ console.error(err); toast(permMsg(err, "mover")); });
+      });
+    });
+    main.querySelectorAll("[data-move-cat]").forEach(function(sel){
+      sel.addEventListener("change", function(){
+        var id = sel.getAttribute("data-move-cat");
+        var categoria = sel.value;
+        callServer("setCatalogItemCategory", {id:id, categoria:categoria, password:adminPassword_}).then(function(){
+          toast("Ítem movido de categoría");
+          loadData(true);
+        }).catch(function(err){ console.error(err); toast(permMsg(err, "mover")); renderCatalogo(main); });
       });
     });
     main.querySelectorAll("[data-addcat]").forEach(function(btn){
