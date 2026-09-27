@@ -1,1120 +1,2833 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-<base target="_top">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pedidos de Insumos — Doma Criolla</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Doma Criolla — Stock y Producción</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
+  /* Paleta e identidad tomadas del Manual de Marca Doma Criolla:
+     Pullman Brown #65341A · Tiger's Eye #D88F31 · Zinnwaldite Brown #311B10.
+     Tipografía: Trajan Pro Bold (títulos) -> Cinzel, la alternativa libre más
+     cercana; Poppins para texto y para el acento de marca. */
   :root{
-    --bg:#F4EDE1;
-    --surface:#FFFDF9;
-    --surface-alt:#F1E5D2;
-    --border:#E1D0B4;
-    --border-strong:#C9AF88;
+    --bg:#F7F1E4;
+    --panel:#FFFFFF;
     --ink:#311B10;
-    --ink-soft:#6E5645;
-    --ink-faint:#A6907A;
-    --accent:#65341A;
-    --accent-ink:#FFFFFF;
-    --accent-soft:#EFDCBE;
-    --accent-soft-ink:#65341A;
-    --danger:#A83A2C;
-    --danger-soft:#F2DAD3;
-    --danger-ink:#7A2A1F;
-    --success:#4C7A43;
-    --success-soft:#DDEAD4;
-    --success-ink:#345C2C;
-    --pending:#B06B1C;
-    --pending-soft:#F3DFB8;
-    --pending-ink:#7A4B12;
-    --shadow: 0 1px 2px rgba(43,38,33,0.06), 0 4px 14px rgba(43,38,33,0.06);
-    --radius: 10px;
-    color-scheme: light;
-  }
-  @media (prefers-color-scheme: dark){
-    :root{
-      --bg:#1E120A; --surface:#2A1B10; --surface-alt:#332318; --border:#4A3624; --border-strong:#5E4630;
-      --ink:#F3E6D3; --ink-soft:#C7AE93; --ink-faint:#93795F;
-      --accent:#E2954E; --accent-ink:#241604; --accent-soft:#4A3419; --accent-soft-ink:#F3D9AF;
-      --danger:#E08573; --danger-soft:#432421; --danger-ink:#F2C6BC;
-      --success:#8FC183; --success-soft:#25331F; --success-ink:#C7E4BC;
-      --pending:#E0AA5A; --pending-soft:#40300F; --pending-ink:#F2D89F;
-      color-scheme: dark;
-    }
+    --ink-soft:#7C6753;
+    --line:#E3D6C4;
+    --crust:#65341A;
+    --crust-dark:#46240F;
+    --accent:#D88F31;
+    --accent-bg:#FAEAD3;
+    --herb:#4B6B3F;
+    --herb-bg:#E3EAD9;
+    --alert:#9A3B2E;
+    --alert-bg:#F3DBD4;
   }
   *{box-sizing:border-box;}
-  html,body{ margin:0; background:var(--bg); }
+  html,body{margin:0;padding:0;}
   body{
+    background:var(--bg);
     color:var(--ink);
-    font-family:'Poppins', system-ui, sans-serif;
+    font-family:'Poppins',system-ui,sans-serif;
     -webkit-font-smoothing:antialiased;
   }
-  .wrap{ max-width:760px; margin:0 auto; padding:0 16px 80px; }
-  h1,h2,h3{ font-family:'Cinzel','Poppins',serif; margin:0; letter-spacing:.01em; }
-  .mono{ font-family:'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  h1,h2,h3{font-family:'Cinzel',serif;font-weight:600;margin:0;letter-spacing:.01em;}
+  .wrap{max-width:920px;margin:0 auto;padding:28px 20px 80px;}
+  header.top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:8px;}
+  header.top h1{font-size:26px;color:var(--crust-dark);text-transform:uppercase;}
+  header.top .sub{font-family:'Poppins',sans-serif;color:var(--accent);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;}
 
-  header.top{
-    position:sticky; top:0; z-index:20;
-    background:var(--bg);
-    padding:16px 16px 0;
-    border-bottom:1px solid var(--border);
+  .home-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px;}
+  @media (max-width:640px){.home-grid{grid-template-columns:1fr;}}
+  .home-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:4px;
+    padding:26px 22px;cursor:pointer;text-align:left;
   }
-  header.top .head-row{
-    max-width:760px; margin:0 auto;
-    display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;
-    padding-bottom:12px;
-  }
-  header.top h1{ font-size:20px; font-weight:800; letter-spacing:-0.01em; }
-  header.top .sub{ font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
-  header.top .refresh{
-    background:none; border:1px solid var(--border-strong); border-radius:99px;
-    color:var(--ink-soft); font-size:12px; font-weight:600; padding:6px 12px; cursor:pointer;
-    font-family:'Poppins',sans-serif; display:flex; align-items:center; gap:5px;
-  }
-  nav.tabs{ max-width:760px; margin:0 auto; display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; }
-  nav.tabs::-webkit-scrollbar{display:none;}
-  nav.tabs button{
-    appearance:none; border:none; background:none;
-    font-family:'Poppins',sans-serif; font-weight:700; font-size:13.5px;
-    color:var(--ink-soft); padding:10px 12px 12px; cursor:pointer;
-    border-bottom:2.5px solid transparent; white-space:nowrap;
-    display:flex; align-items:center; gap:6px;
-  }
-  nav.tabs button.active{ color:var(--ink); border-bottom-color:var(--accent); }
-  nav.tabs button .count{
-    font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600;
-    background:var(--pending-soft); color:var(--pending-ink);
-    border-radius:99px; padding:1px 6px; min-width:16px; text-align:center;
-  }
+  .home-card h2{font-size:20px;margin-bottom:6px;}
+  .home-card p{color:var(--ink-soft);font-size:14px;margin:0;line-height:1.5;}
+  .home-card .tag{display:inline-block;font-size:12px;color:var(--crust-dark);margin-bottom:10px;letter-spacing:.02em;}
 
-  main{ padding-top:18px; }
-  .panel{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:16px; }
-  .panel-head{ padding:14px 16px; border-bottom:1px dashed var(--border-strong); display:flex; align-items:center; justify-content:space-between; gap:10px; }
-  .panel-head h3{ font-size:14.5px; font-weight:700; letter-spacing:.02em; text-transform:uppercase; color:var(--ink-soft); }
-  .panel-body{ padding:14px 16px; }
-
-  label.field{ display:block; margin-bottom:12px; }
-  label.field .lbl{ display:block; font-size:12.5px; font-weight:600; color:var(--ink-soft); margin-bottom:5px; }
-  input[type=text], input[type=password], input[type=date], select, textarea{
-    width:100%; font-family:'Poppins',sans-serif; font-size:15px;
-    padding:10px 11px; border-radius:8px; border:1px solid var(--border-strong);
-    background:var(--surface-alt); color:var(--ink); min-height:42px;
-  }
-  input[type=text]:focus, input[type=password]:focus, input[type=date]:focus, select:focus, textarea:focus{ outline:2px solid var(--accent); outline-offset:1px; }
-  .user-box{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  @media (max-width:480px){ .row2{ grid-template-columns:1fr; } }
-
+  button{font-family:inherit;cursor:pointer;}
   .btn{
-    appearance:none; border:none; cursor:pointer;
-    font-family:'Poppins',sans-serif; font-weight:700; font-size:14px;
-    padding:11px 18px; border-radius:8px;
-    display:inline-flex; align-items:center; justify-content:center; gap:6px;
-    min-height:44px;
+    background:var(--crust);color:#fff;border:none;border-radius:3px;
+    padding:11px 18px;font-size:14px;font-weight:600;
   }
-  .btn-primary{ background:var(--accent); color:var(--accent-ink); }
-  .btn-primary:disabled{ opacity:.45; cursor:not-allowed; }
-  .btn-ghost{ background:transparent; color:var(--ink-soft); border:1px solid var(--border-strong); }
-  .btn-sm{ padding:7px 11px; min-height:34px; font-size:12.5px; }
-  .btn-block{ width:100%; }
+  .btn:hover{background:var(--crust-dark);}
+  .btn.secondary{background:transparent;color:var(--ink-soft);border:1px solid var(--line);}
+  .btn.secondary:hover{border-color:var(--ink-soft);}
+  .btn:disabled{opacity:.5;cursor:default;}
 
-  .cat-block{ border-top:1px dashed var(--border-strong); }
-  .cat-block:first-child{ border-top:none; }
-  .cat-title{ padding:12px 16px 4px; font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--accent-soft-ink); background:var(--accent-soft); }
-  .item-row{ display:flex; align-items:center; gap:10px; padding:8px 16px; border-top:1px solid var(--border); }
-  .item-row:first-of-type{ border-top:none; }
-  .item-name{ flex:1; font-size:14px; line-height:1.3; }
-  .item-name .tag-extra{ font-size:10px; font-weight:700; color:var(--success-ink); background:var(--success-soft); border-radius:4px; padding:1px 5px; margin-left:6px; vertical-align:middle; }
-  input[type=text].qty-input{ width:54px; flex:none; text-align:center; font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:15px; padding:8px 4px; min-height:38px; }
-  .rm-btn{ flex:none; width:30px; height:30px; border-radius:7px; border:1px solid var(--border-strong); background:var(--surface-alt); color:var(--danger); cursor:pointer; font-size:15px; line-height:1; }
+  .back{display:inline-flex;align-items:center;gap:6px;color:var(--ink-soft);font-size:13px;background:none;border:none;padding:0;margin-bottom:18px;}
+  .back:hover{color:var(--ink);}
 
-  .extra-add{ display:flex; gap:8px; padding:10px 16px 14px; }
-  .extra-add input[type=text]{ flex:1; }
-  .extra-add input[type=text].qty-input{ width:54px; }
-
-  .badge{ font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; padding:3px 8px; border-radius:99px; white-space:nowrap; }
-  .badge-pending{ background:var(--pending-soft); color:var(--pending-ink); }
-  .badge-sent{ background:var(--accent-soft); color:var(--accent-soft-ink); }
-  .badge-closed{ background:var(--success-soft); color:var(--success-ink); }
-  .badge-rejected{ background:var(--danger-soft); color:var(--danger-ink); }
-  .idr-readonly{ font-size:13px; color:var(--ink-soft); padding:2px 0; }
-  .idr-readonly b{ color:var(--ink); font-weight:600; }
-
-  .filters{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border); }
-  .filters select{ width:auto; min-height:36px; padding:6px 10px; font-size:13px; }
-  .filters .btn{ margin-left:auto; }
-
-  .order-card{ padding:13px 16px; border-top:1px solid var(--border); display:flex; align-items:center; gap:12px; cursor:pointer; }
-  .order-card:first-child{ border-top:none; }
-  .order-card:hover{ background:var(--surface-alt); }
-  .order-card .oc-main{ flex:1; min-width:0; }
-  .order-card .oc-local{ font-family:'Cinzel',serif; font-weight:700; font-size:14.5px; }
-  .order-card .oc-sub{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
-  .order-card .oc-arrow{ color:var(--ink-faint); font-size:16px; }
-
-  .empty{ padding:34px 16px; text-align:center; color:var(--ink-soft); font-size:14px; }
-  .empty .big{ font-size:26px; margin-bottom:6px; }
-
-  .toast{
-    position:fixed; left:50%; bottom:22px; transform:translateX(-50%);
-    background:var(--ink); color:var(--bg); font-size:13.5px; font-weight:600;
-    padding:11px 18px; border-radius:99px; box-shadow:var(--shadow);
-    z-index:50; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s;
+  select,input[type=text],input[type=number],input[type=date]{
+    font-family:inherit;font-size:14px;padding:9px 10px;border:1px solid var(--line);
+    border-radius:3px;background:#fff;color:var(--ink);
   }
-  .toast.show{ opacity:1; transform:translateX(-50%) translateY(-6px); }
+  label{font-size:12px;color:var(--ink-soft);display:block;margin-bottom:4px;}
 
-  .detail-head{ padding:14px 16px; border-bottom:1px dashed var(--border-strong); }
-  .detail-head .back{ background:none; border:none; color:var(--ink-soft); font-family:'Poppins',sans-serif; font-size:13px; cursor:pointer; padding:0 0 10px; display:flex; align-items:center; gap:4px; }
-  .detail-grid{ display:flex; flex-wrap:wrap; gap:8px 18px; font-size:13px; color:var(--ink-soft); }
-  .detail-grid b{ color:var(--ink); font-weight:600; }
+  .field-row{margin-bottom:18px;max-width:320px;}
 
-  .item-detail-row{ padding:11px 16px; border-top:1px solid var(--border); }
-  .item-detail-row:first-of-type{ border-top:none; }
-  .item-detail-row .idr-top{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
-  .item-detail-row .idr-name{ flex:1; font-size:14px; }
-  .item-detail-row .idr-pedido{ font-size:12px; color:var(--ink-soft); }
-  .item-detail-row.st-enviado{ background:var(--success-soft); }
-  .item-detail-row.st-no_enviado{ background:var(--danger-soft); }
-  .idr-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  .idr-controls .qty-input{ min-height:38px; }
-  .chk{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-soft); cursor:pointer; user-select:none; }
-  .chk input{ width:16px; height:16px; }
-  .idr-motivo{ margin-top:8px; display:grid; grid-template-columns:1fr auto; gap:8px; }
-  .idr-motivo input[type=text]{ font-size:13px; }
-  .idr-motivo input[type=date]{ font-size:13px; width:150px; }
-  @media (max-width:480px){ .idr-motivo{ grid-template-columns:1fr; } .idr-motivo input[type=date]{ width:100%; } }
+  table.lotes{width:100%;border-collapse:collapse;margin-top:10px;}
+  table.lotes th{
+    text-align:left;font-size:11px;text-transform:none;color:var(--ink-soft);
+    border-bottom:1px solid var(--line);padding:6px 8px;font-weight:600;
+  }
+  table.lotes td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  table.lotes select{width:100%;}
+  table.lotes input{width:100%;}
+  table.traza tr.fila-guardada{background:var(--herb-bg);}
+  table.traza tr.fila-guardada td{color:var(--ink-soft);}
+  .btn-guardar-item:disabled{opacity:.7;}
+  .col-cant{width:90px;}
+  .col-venc{width:150px;}
+  .col-add{width:30px;text-align:center;}
+  .col-del{width:34px;text-align:center;}
+  .del-btn{background:none;border:none;color:var(--alert);font-size:16px;line-height:1;padding:4px;}
 
-  .save-bar{ position:sticky; bottom:0; background:var(--bg); padding:12px 0 4px; border-top:1px solid var(--border); display:flex; gap:10px; }
+  .add-row{margin-top:10px;background:none;border:1px dashed var(--line);color:var(--ink-soft);
+    padding:8px 14px;border-radius:3px;font-size:13px;}
+  .add-row:hover{border-color:var(--crust);color:var(--crust-dark);}
 
-  .catalog-item{ display:flex; align-items:center; gap:10px; padding:7px 16px; border-top:1px solid var(--border); flex-wrap:wrap; }
-  .catalog-item:first-of-type{ border-top:none; }
-  .catalog-item .ci-name{ flex:1; font-size:14px; min-width:120px; }
-  .catalog-item .ci-controls{ display:flex; align-items:center; gap:6px; margin-left:auto; }
-  select.ci-cat-select{ width:auto; min-height:30px; padding:4px 6px; font-size:12px; }
-  .catalog-add{ display:flex; gap:8px; padding:10px 16px 14px; }
-  .catalog-add input{ flex:1; }
+  .add-lote-btn{background:none;border:1px solid var(--line);color:var(--ink-soft);
+    font-size:13px;line-height:1;padding:3px 8px;border-radius:3px;}
+  .add-lote-btn:hover{border-color:var(--crust);color:var(--crust-dark);}
+  .item-extra{color:var(--ink-soft);font-size:12px;font-style:italic;}
+  h4.cat-heading{font-size:13px;margin:22px 0 4px;color:var(--crust-dark);
+    text-transform:uppercase;letter-spacing:.03em;}
+  /* nombre de la receta (Relleno/Preparado) en Registrar producción → Cocina:
+     más grande que el listado de insumos de abajo, para que se distinga de
+     un vistazo cuál es el título y cuál el detalle. */
+  h4.receta-heading{font-size:17px;text-transform:none;letter-spacing:0;margin-top:28px;}
+  table.lotes.traza td{font-size:13.5px;}
+  .cat-nav{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0 0;}
+  .cat-nav a{font-size:11.5px;color:var(--ink-soft);border:1px solid var(--line);
+    padding:4px 9px;border-radius:12px;text-decoration:none;}
+  .cat-nav a:hover{border-color:var(--crust);color:var(--crust-dark);}
 
-  .banner{ background:var(--accent-soft); color:var(--accent-soft-ink); border-radius:var(--radius); padding:11px 14px; font-size:13px; margin-bottom:14px; border:1px solid var(--border-strong); }
-  .success-screen{ padding:40px 20px; text-align:center; }
-  .success-screen .big{ font-size:34px; margin-bottom:10px; }
-  .success-screen h2{ font-size:18px; margin-bottom:6px; }
-  .success-screen p{ color:var(--ink-soft); font-size:14px; margin:0 0 20px; }
+  .actions{margin-top:22px;display:flex;gap:10px;align-items:center;}
+  .msg{font-size:13px;margin-top:14px;padding:10px 12px;border-radius:3px;display:none;}
+  .msg.ok{display:block;background:var(--herb-bg);color:var(--herb);}
+  .msg.err{display:block;background:var(--alert-bg);color:var(--alert);}
 
-  ::selection{ background:var(--accent-soft); }
+  .fab-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+  .fab-toolbar .field-row{margin:0;max-width:180px;}
 
-  .print-sheet{ display:none; }
+  table.prod{width:100%;border-collapse:collapse;font-size:13.5px;}
+  table.prod th{
+    text-align:left;font-size:11px;color:var(--ink-soft);border-bottom:1px solid var(--ink-soft);
+    padding:7px 8px;font-weight:600;
+  }
+  table.prod td{padding:7px 8px;border-bottom:1px solid var(--line);}
+  table.prod tr:hover td{background:rgba(0,0,0,.02);}
+  .num{text-align:right;font-variant-numeric:tabular-nums;}
+  .badge{font-size:11px;padding:2px 7px;border-radius:10px;background:var(--herb-bg);color:var(--herb);}
+  .badge.reposo{background:var(--accent-bg);color:var(--crust-dark);}
+
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;}
+  .tab-btn{background:none;border:none;padding:9px 16px;font-size:14px;color:var(--ink-soft);border-bottom:2px solid transparent;margin-bottom:-1px;font-family:'Poppins',sans-serif;}
+  .tab-btn.active{color:var(--crust-dark);border-bottom-color:var(--accent);font-weight:600;}
+  .tab-btn:hover{color:var(--ink);}
+
+  .alert-box{background:var(--alert-bg);border-radius:4px;padding:14px 16px;margin-bottom:18px;}
+  .alert-box h3{color:var(--alert);font-size:15px;margin-bottom:8px;}
+  .alert-box ul{margin:0;padding-left:18px;font-size:13.5px;color:#5c2b23;}
+
+  .empty{color:var(--ink-soft);font-size:14px;padding:30px 0;text-align:center;}
+  .loading{color:var(--ink-soft);font-size:14px;}
+  footer.note{margin-top:40px;font-size:12px;color:var(--ink-soft);border-top:1px solid var(--line);padding-top:14px;}
+
+  /* Al imprimir "Ver qué producir hoy" solo se ve la tabla del sector activo
+     (Producción / Cocina / Discos) — todo lo de navegación queda afuera. */
   @media print{
-    body > *:not(.print-sheet){ display:none !important; }
-    .print-sheet{ display:block !important; padding:10px; color:#111; font-family:'Poppins',sans-serif; }
-    .print-sheet h1{ font-size:18px; margin:0 0 6px; font-family:'Cinzel',serif; }
-    .print-sheet .ps-meta{ font-size:12.5px; color:#333; margin-bottom:4px; }
-    .print-sheet .ps-cat{ font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin:16px 0 4px; border-bottom:1px solid #999; padding-bottom:3px; }
-    .print-sheet .ps-item{ display:flex; align-items:center; gap:10px; padding:5px 0; font-size:13px; border-bottom:1px dotted #ccc; }
-    .print-sheet .ps-check{ width:13px; height:13px; border:1.4px solid #333; flex:none; }
-    .print-sheet .ps-name{ flex:1; }
-    .print-sheet .ps-qty{ font-weight:700; font-family:'IBM Plex Mono',monospace; min-width:30px; text-align:right; }
+    .back, .fab-toolbar, .tabs, footer.note{display:none !important;}
+    body{background:#fff;}
+    .wrap{max-width:none;padding:0;}
+    table.prod, table.lotes{font-size:12px;}
+    table.prod tr, table.lotes tr{break-inside:avoid;}
+    .alert-box{break-inside:avoid;}
+    .no-print{display:none !important;}
+  }
+
+  /* Orden de envío imprimible — arma una hoja aparte con solo lo cargado en
+     pantalla para ese local, y se muestra únicamente al imprimir. */
+  #printAreaEnvio{display:none;}
+  #printAreaEnvio h1{font-size:20px;margin-bottom:2px;}
+  #printAreaEnvio .print-sub{color:var(--ink-soft);font-size:14px;margin:0 0 16px;}
+  #printAreaEnvio h3{font-size:14px;margin:18px 0 6px;}
+  table.print-tabla{width:100%;border-collapse:collapse;margin-bottom:6px;}
+  table.print-tabla th{text-align:left;font-size:11px;color:var(--ink-soft);border-bottom:1px solid var(--ink-soft);padding:6px 8px;}
+  table.print-tabla td{padding:6px 8px;border-bottom:1px solid var(--line);}
+  table.print-tabla .num{text-align:right;}
+  @media print{
+    body.print-envio .wrap{display:none !important;}
+    body.print-envio #printAreaEnvio{display:block;}
   }
 </style>
 </head>
 <body>
-
-<header class="top">
-  <div class="head-row">
-    <div>
-      <h1>Pedidos de Insumos — Doma Criolla</h1>
-    </div>
-    <div class="user-box">
-      <button class="refresh" id="refreshBtn" type="button">⟳ Actualizar</button>
-    </div>
-  </div>
-  <nav class="tabs" id="tabs">
-    <button data-tab="nuevo">Nuevo pedido</button>
-    <button data-tab="pedidos">Pedidos y envíos <span class="count" id="pendingCount" style="display:none">0</span></button>
-    <button data-tab="catalogo">Catálogo</button>
-  </nav>
-</header>
-
-<div class="wrap">
-  <main id="main">
-    <div class="empty"><div class="big">🧾</div>Cargando…</div>
-  </main>
-</div>
-
-<div class="toast" id="toast"></div>
-<div class="print-sheet" id="printSheet"></div>
+<div class="wrap" id="app"></div>
 
 <script>
-(function(){
-  "use strict";
+/* ======================================================================
+   CONFIGURACIÓN — completar después de publicar el Apps Script
+   ====================================================================== */
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx0MpQPLqVL_5QpuRAOmz_3uvA6Oz-72bzwABz3bN6ltR3kmH0-nnMwRnoDrfhanm0DWQ/exec';
 
-  var CATEGORIES = [
-    {key:"LIMPIEZA", label:"Limpieza"},
-    {key:"LIBRERIA", label:"Librería"},
-    {key:"FARMACIA", label:"Farmacia"},
-    {key:"IMPRESIONES", label:"Impresiones"},
-    {key:"PACKAGING", label:"Packaging"}
-  ];
-  var CAT_LABEL = {};
-  CATEGORIES.forEach(function(c){ CAT_LABEL[c.key]=c.label; });
+const LOCALES = ['Centro', 'Patagonia', 'Zelarrayan', 'Fábrica - Producción', 'Fábrica - Cocina', 'Fábrica - Discos'];
+const TIPOS_DISCO = ['Horno', 'Frito', 'Recorte'];
+let SABORES_CACHE = null;
+let RELLENOS_CACHE = null;
+let RECETAS_CACHE = null;
 
-  var LOCALES = [
-    {key:"CENTRO", label:"Local Centro"},
-    {key:"PATAGONIA", label:"Local Patagonia"},
-    {key:"ZELARRAYAN", label:"Local Zelarrayán"}
-  ];
-  var LOCAL_LABEL = {};
-  LOCALES.forEach(function(l){ LOCAL_LABEL[l.key]=l.label; });
+async function obtenerRecetas(){
+  if(RECETAS_CACHE) return RECETAS_CACHE;
+  const r = await fetch(`${APPS_SCRIPT_URL}?action=listarRecetas`);
+  const data = await r.json();
+  RECETAS_CACHE = { cabecera: data.recetas || [], detalle: data.detalle || [] };
+  return RECETAS_CACHE;
+}
 
-  // Pegá acá la URL que te da Apps Script al implementar (Implementar → Nueva
-  // implementación → Aplicación web), termina en /exec. Sin esto, la página
-  // no tiene con quién hablar para guardar ni leer los pedidos.
-  var API_URL = "https://script.google.com/macros/s/AKfycbw9tFfl_MMsORMq5-4iORIYeCZVagJuhkG0ODPs-upTVvOD60GPldXMr85p3ChT51D_/exec";
+const app = document.getElementById('app');
 
-  var catalogItems = [];
-  var pedidos = [];
-  var loaded = false;
-  var POLL_MS = 20000;
+/* ---------------------------------------------------------------------
+   Router muy simple (sin librerías) — 3 pantallas
+   --------------------------------------------------------------------- */
+function irA(pantalla){
+  if(pantalla === 'home') renderHome();
+  if(pantalla === 'local') renderLocal();
+  if(pantalla === 'fabrica') renderFabrica();
+  if(pantalla === 'planificacion') renderPlanificacion();
+  if(pantalla === 'envios') renderEnvios();
+  if(pantalla === 'recepcion') renderRecepcion();
+  if(pantalla === 'historial') renderHistorialEnvios();
+  if(pantalla === 'registro') renderRegistroProduccion();
+  if(pantalla === 'fichas') renderFichasTecnicas();
+  if(pantalla === 'informes') renderInformes();
+}
 
-  var state = {
-    tab: "nuevo",
-    detailId: null,
-    newOrderForm: null,
-    editForm: null,
-    filterEstado: "pendiente",
-    filterLocal: "TODOS",
-    adminUnlocked: false
-  };
+function renderHome(){
+  app.innerHTML = `
+    <header class="top">
+      <h1>Doma Criolla</h1>
+      <div class="sub">Stock y producción</div>
+    </header>
+    <div class="home-grid">
+      <button class="home-card" onclick="irA('local')">
+        <div class="tag">LOCAL / FÁBRICA</div>
+        <h2>Cargar stock de hoy</h2>
+        <p>Registrar cuánto queda de cada sabor, con su fecha de vencimiento.</p>
+      </button>
+      <button class="home-card" onclick="irA('recepcion')">
+        <div class="tag">LOCAL</div>
+        <h2>Confirmar recepción</h2>
+        <p>Registrar cuánto llegó realmente de lo que fábrica despachó hoy.</p>
+      </button>
+      <button class="home-card" onclick="irA('historial')">
+        <div class="tag">FÁBRICA / LOCAL</div>
+        <h2>Historial de envíos</h2>
+        <p>Comparar lo enviado contra lo recibido, por local y sabor.</p>
+      </button>
+      <button class="home-card" onclick="irA('fabrica')">
+        <div class="tag">FÁBRICA</div>
+        <h2>Ver qué producir hoy</h2>
+        <p>Calculado a partir del stock cargado y la venta estimada de cada sabor.</p>
+      </button>
+      <button class="home-card" onclick="irA('registro')">
+        <div class="tag">FÁBRICA</div>
+        <h2>Registrar producción</h2>
+        <p>Trazabilidad del turno: máquina, disco, relleno, horas y total producido por sabor.</p>
+      </button>
+      <button class="home-card" onclick="irA('envios')">
+        <div class="tag">FÁBRICA</div>
+        <h2>Despachar envíos</h2>
+        <p>Cuánto hay que mandarle hoy a cada local, calculado con lo que vende y lo que ya tiene cargado.</p>
+      </button>
+      <button class="home-card" onclick="irA('fichas')">
+        <div class="tag">FÁBRICA</div>
+        <h2>Fichas técnicas</h2>
+        <p>Importar y actualizar las recetas (Rellenos, Preparados, Postres, Dips, Edición Limitada).</p>
+      </button>
+      <button class="home-card" onclick="irA('planificacion')">
+        <div class="tag">PLANIFICACIÓN</div>
+        <h2>Editar venta proyectada</h2>
+        <p>Actualizar, por local, cuánto se espera vender de cada sabor cada día de la semana.</p>
+      </button>
+      <button class="home-card" onclick="irA('informes')">
+        <div class="tag">FÁBRICA</div>
+        <h2>Informes</h2>
+        <p>Total real de insumos usados por día, sumado de las recetas ya enviadas como final en Cocina.</p>
+      </button>
+    </div>
+    <footer class="note">Doma Criolla — herramienta interna de planificación de producción.</footer>
+  `;
+}
 
-  // ---------- server bridge (fetch a la API de Apps Script) ----------
-  function apiConfigured(){
-    return API_URL && API_URL.indexOf("PEGAR_ACA") === -1;
+/* ---------------------------------------------------------------------
+   Pantalla LOCAL: cargar lotes de stock
+   --------------------------------------------------------------------- */
+let CATEGORIA_POR_SABOR_CACHE = null;
+async function obtenerCategorias(){
+  if(SABORES_CACHE) return SABORES_CACHE;
+  const r = await fetch(`${APPS_SCRIPT_URL}?action=listarSabores`);
+  const data = await r.json();
+  SABORES_CACHE = data.categorias || {};
+  CATEGORIA_POR_SABOR_CACHE = data.categoriaPorSabor || {};
+  return SABORES_CACHE;
+}
+// Categoria (Canasta, Frito, Horno, etc.) de cada sabor — para saber, por
+// ejemplo, cuáles son Canasta (armado manual del molde) sin adivinarlo por
+// el nombre.
+async function obtenerCategoriaPorSabor(){
+  if(!CATEGORIA_POR_SABOR_CACHE) await obtenerCategorias();
+  return CATEGORIA_POR_SABOR_CACHE || {};
+}
+
+async function obtenerRellenos(){
+  if(RELLENOS_CACHE) return RELLENOS_CACHE;
+  const r = await fetch(`${APPS_SCRIPT_URL}?action=listarRellenos`);
+  const data = await r.json();
+  RELLENOS_CACHE = data.rellenos || [];
+  return RELLENOS_CACHE;
+}
+
+// Lista de empleados (hoja "Empleados" del Sheet) para los desplegables de
+// "quién hizo esto" — Responsable, Repartidor, Acompañante, puestos de máquina.
+let EMPLEADOS_CACHE = null;
+async function obtenerEmpleados(){
+  if(EMPLEADOS_CACHE) return EMPLEADOS_CACHE;
+  const r = await fetch(`${APPS_SCRIPT_URL}?action=listarEmpleados`);
+  const data = await r.json();
+  EMPLEADOS_CACHE = data.empleados || [];
+  return EMPLEADOS_CACHE;
+}
+function opcionesEmpleados(empleados){
+  if(!empleados || empleados.length === 0){
+    return '<option value="">(cargá empleados en la hoja "Empleados")</option>';
   }
+  return '<option value="">— Seleccionar —</option>' + empleados.map(n => `<option value="${n}">${n}</option>`).join('');
+}
+// igual que opcionesEmpleados pero marcando "selected" el que ya estaba
+// guardado — para prellenar desplegables de Responsable/puestos al recargar.
+function opcionesEmpleadosSeleccion(empleados, seleccionado){
+  if(!empleados || empleados.length === 0){
+    return '<option value="">(cargá empleados en la hoja "Empleados")</option>';
+  }
+  return '<option value="">— Seleccionar —</option>' + empleados.map(n => `<option value="${n}" ${n === seleccionado ? 'selected' : ''}>${n}</option>`).join('');
+}
 
-  function callServer(action, payload){
-    if(!apiConfigured()){
-      return Promise.reject(new Error("Falta configurar API_URL en Index.html con el link de Apps Script."));
-    }
-    // Todo viaja por GET (incluso para guardar/editar): Apps Script redirige
-    // internamente sus respuestas, y ese redirect descarta el "body" de un
-    // POST antes de que llegue al servidor. Mandando todo por GET, con los
-    // datos codificados en la URL, evitamos ese problema por completo.
-    var url = API_URL + "?action=" + encodeURIComponent(action);
-    if(action !== "getData"){
-      url += "&payload=" + encodeURIComponent(JSON.stringify(payload||{}));
-    }
-    return fetch(url, {method:"GET"})
-      .then(function(r){ return r.json(); })
-      .then(checkApiError_);
+// guarda (o actualiza) UN lote de "Cargar stock" apenas se termina de cargar,
+// sin esperar a completar el resto de la lista — así, si hay un error de
+// tipeo en la tablet, se corrige y reguarda solo ese lote, sin repetir toda
+// la carga. Confirmado con Carolina (26/09/2026).
+async function guardarItemStock(tr){
+  const local = document.getElementById('selLocal').value;
+  const fecha = document.getElementById('fechaCarga').value;
+  const responsable = document.getElementById('inpResponsable').value.trim();
+  if(!responsable){
+    alert('Indicá quién está cargando este stock antes de guardar (arriba de la lista de productos).');
+    return;
   }
-
-  function checkApiError_(data){
-    if(data && data.error){ throw new Error(data.error); }
-    return data;
+  const cantidad = tr.querySelector('.inp-cant').value;
+  const vencimiento = tr.querySelector('.inp-venc').value;
+  if(!cantidad || Number(cantidad) <= 0 || !vencimiento){
+    alert('Cargá cantidad y vencimiento de este lote antes de guardarlo.');
+    return;
   }
-
-  // ---------- helpers ----------
-  function todayStr(){
-    var d = new Date();
-    var m = (d.getMonth()+1+"").padStart(2,"0");
-    var day = (d.getDate()+"").padStart(2,"0");
-    return d.getFullYear()+"-"+m+"-"+day;
-  }
-  function fmtDate(s){
-    if(!s) return "";
-    var p = String(s).split("-");
-    if(p.length===3 && p[0].length===4){
-      return p[2].slice(0,2)+"/"+p[1]+"/"+p[0];
-    }
-    // Por si llega algo que no sea "yyyy-mm-dd" (por ejemplo una fecha sin
-    // normalizar), lo interpretamos igual en vez de mostrar texto crudo.
-    try{
-      var d = new Date(s);
-      if(isNaN(d.getTime())) return String(s);
-      return d.toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric"});
-    }catch(e){ return String(s); }
-  }
-  function fmtDateTime(iso){
-    try{
-      var d = new Date(iso);
-      return d.toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit"}) + " " + d.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
-    }catch(e){ return ""; }
-  }
-  function esc(s){
-    return (s==null?"":String(s)).replace(/[&<>"']/g, function(c){
-      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  const item = { sabor: tr.dataset.item, cantidad, vencimiento };
+  const btn = tr.querySelector('.btn-guardar-item');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try{
+    const r = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'registrarStockItem', local, fecha, responsable, item })
     });
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    tr.classList.add('fila-guardada');
+    [...tr.querySelectorAll('input')].forEach(el => el.disabled = true);
+    btn.textContent = '✓ Guardado'; btn.style.display = 'none';
+    const btnEditar = tr.querySelector('.btn-editar-item');
+    if(btnEditar) btnEditar.style.display = '';
+  }catch(err){
+    btn.disabled = false; btn.textContent = 'Guardar';
+    alert('No se pudo guardar este lote: ' + err.message);
   }
-  function uid(){ return Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4); }
+}
 
-  function toast(msg){
-    var t = document.getElementById("toast");
-    t.textContent = msg;
-    t.classList.add("show");
-    clearTimeout(toast._h);
-    toast._h = setTimeout(function(){ t.classList.remove("show"); }, 2400);
-  }
-  function safeLS(){ try{ return window.localStorage; }catch(e){ return null; } }
-  function lsGet(k, d){ var ls=safeLS(); if(!ls) return d; try{ var v=ls.getItem(k); return v==null?d:v; }catch(e){ return d; } }
-  function lsSet(k,v){ var ls=safeLS(); if(!ls) return; try{ ls.setItem(k,v); }catch(e){} }
+async function renderLocal(){
+  app.innerHTML = `
+    <button class="back" onclick="irA('home')">← Volver</button>
+    <header class="top"><h1>Cargar stock</h1></header>
 
-  function groupByCategory(items){
-    var byCat = {};
-    CATEGORIES.forEach(function(c){ byCat[c.key]=[]; });
-    items.forEach(function(it){
-      if(!byCat[it.category]) byCat[it.category]=[];
-      byCat[it.category].push(it);
-    });
-    return byCat;
-  }
+    <div class="field-row">
+      <label>¿Dónde estás cargando este stock?</label>
+      <select id="selLocal">
+        ${LOCALES.map(l => `<option value="${l}">${l}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field-row">
+      <label>¿Quién está cargando este stock?</label>
+      <div id="responsableWrap"><input type="text" id="inpResponsable" placeholder="Nombre y apellido"></div>
+    </div>
+    <div class="field-row">
+      <label>Fecha (por si cargás con atraso)</label>
+      <input type="date" id="fechaCarga" value="${hoyISO()}">
+    </div>
 
-  // ---------- data load / poll ----------
-  function loadData(silent){
-    if(!apiConfigured()){
-      loaded = true;
-      var main = document.getElementById("main");
-      main.innerHTML = '<div class="panel"><div class="panel-body"><div class="banner" style="margin:0">'+
-        'Falta un paso: abrí este archivo Index.html, buscá la línea <code>API_URL</code> cerca del comienzo del script '+
-        'y pegá ahí la URL que te dio Apps Script al implementar (termina en <code>/exec</code>). Después volvé a subirlo a GitHub.'+
-        '</div></div></div>';
-      return Promise.resolve();
-    }
-    return callServer("getData").then(function(data){
-      catalogItems = data.catalog || [];
-      pedidos = data.pedidos || [];
-      loaded = true;
-      render();
-    }).catch(function(err){
-      console.error(err);
-      if(!silent) toast("No se pudo cargar. Revisá la conexión.");
-      if(!loaded){ loaded = true; render(); }
-    });
-  }
+    <p style="color:var(--ink-soft);font-size:12.5px;max-width:560px;">
+      Están listados todos los productos — completá cantidad y vencimiento solo en los que tengas hoy,
+      el resto se deja en blanco. Guardá cada lote con su propio botón apenas lo cargues (así, si hay
+      un error de tipeo, se corrige y reguarda solo ese lote, sin tocar el resto). Si un mismo producto
+      tiene más de un lote con vencimientos distintos, usá el botón <strong>+</strong> de esa fila para
+      agregar otra línea.
+    </p>
 
-  setInterval(function(){
-    // Solo actualiza en segundo plano si no hay algo a medio escribir.
-    if(state.tab==="pedidos" && !state.detailId){ loadData(true); }
-    else if(state.tab==="catalogo"){ loadData(true); }
-  }, POLL_MS);
+    <div id="catNav" class="cat-nav"></div>
+    <div id="tablaLotesContainer" class="loading">Cargando…</div>
 
-  // ---------- render root ----------
-  function render(){
-    var main = document.getElementById("main");
-    document.querySelectorAll("#tabs button").forEach(function(b){
-      b.classList.toggle("active", b.getAttribute("data-tab")===state.tab);
-    });
-    var pendCount = pedidos.filter(function(p){ return p.estado==="pendiente" || p.estado==="enviado"; }).length;
-    var pc = document.getElementById("pendingCount");
-    if(pendCount>0){ pc.style.display="inline-block"; pc.textContent=pendCount; }
-    else { pc.style.display="none"; }
+    <div class="actions no-print">
+      <button class="btn" id="btnGuardar">Enviar stock</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  `;
 
-    if(!loaded){
-      main.innerHTML = '<div class="empty"><div class="big">🧾</div>Cargando catálogo…</div>';
-      return;
-    }
-    if(state.tab==="nuevo") return renderNuevo(main);
-    if(state.tab==="pedidos"){
-      if(state.detailId) return renderDetail(main, state.detailId);
-      return renderLista(main);
-    }
-    if(state.tab==="catalogo") return renderCatalogo(main);
+  const categorias = await obtenerCategorias();
+  const rellenos = await obtenerRellenos();
+  let empleados = [];
+  const nombresCategorias = Object.keys(categorias);
+
+  // según el sector elegido, se carga por Sabor (locales y Fábrica -
+  // Producción), por Relleno en kilos (Fábrica - Cocina), o por tipo de
+  // disco en docenas (Fábrica - Discos).
+  function modoDeLocal(local){
+    if(local === 'Fábrica - Cocina') return 'relleno';
+    if(local === 'Fábrica - Discos') return 'disco';
+    return 'sabor';
   }
 
-  // ---------- TAB: Nuevo pedido ----------
-  function buildNewOrderForm(){
-    var byCat = groupByCategory(catalogItems);
-    var items = {};
-    CATEGORIES.forEach(function(c){
-      byCat[c.key].forEach(function(it){
-        items[it.id] = {id:it.id, category:c.key, name:it.name, qty:""};
-      });
-    });
-    return {
-      local: lsGet("dc_last_local", ""),
-      quienPide: lsGet("dc_quien_pide", ""),
-      fecha: todayStr(),
-      notas: "",
-      items: items,
-      extra: []
-    };
-  }
+  // el listado de empleados es solo para Fábrica (Producción/Cocina/Discos);
+  // en los locales el responsable se escribe a mano.
+  function esFabrica(local){ return local.startsWith('Fábrica'); }
 
-  function renderNuevo(main){
-    if(!state.newOrderForm){ state.newOrderForm = buildNewOrderForm(); }
-    var f = state.newOrderForm;
-    var byCat = groupByCategory(catalogItems);
-
-    var html = '';
-    if(catalogItems.length===0){
-      html += '<div class="banner">Todavía no hay ítems en el catálogo. Cargalos desde la pestaña <b>Catálogo</b>.</div>';
-    }
-    html += '<div class="panel"><div class="panel-body">';
-    html += '<div class="row2">';
-    html += fieldSelect("Local", "f_local", LOCALES.map(function(l){return {v:l.key,l:l.label};}), f.local, true);
-    html += fieldInput("Fecha del pedido", "f_fecha", "date", f.fecha);
-    html += '</div>';
-    html += fieldInput("¿Quién pide?", "f_quien", "text", f.quienPide);
-    html += fieldInput("Notas (opcional)", "f_notas", "text", f.notas);
-    html += '</div></div>';
-
-    CATEGORIES.forEach(function(c){
-      var list = byCat[c.key];
-      var extraList = f.extra.filter(function(e){ return e.category===c.key; });
-      html += '<div class="panel"><div class="cat-block">';
-      html += '<div class="cat-title">'+esc(c.label)+'</div>';
-      list.forEach(function(it){
-        var val = f.items[it.id] ? f.items[it.id].qty : "";
-        html += '<div class="item-row">';
-        html += '<div class="item-name">'+esc(it.name)+'</div>';
-        html += '<input class="qty-input" type="text" inputmode="numeric" placeholder="cant." data-item-id="'+it.id+'" value="'+esc(val)+'">';
-        html += '</div>';
-      });
-      extraList.forEach(function(e){
-        html += '<div class="item-row">';
-        html += '<div class="item-name">'+esc(e.name)+'<span class="tag-extra">nuevo</span></div>';
-        html += '<input class="qty-input" type="text" inputmode="numeric" placeholder="cant." data-extra-id="'+e.tempId+'" value="'+esc(e.qty)+'">';
-        html += '<button class="rm-btn" data-rm-extra="'+e.tempId+'" title="Quitar" type="button">×</button>';
-        html += '</div>';
-      });
-      html += '<div class="extra-add">';
-      html += '<input type="text" placeholder="Agregar ítem puntual…" data-extra-name-cat="'+c.key+'">';
-      html += '<button class="btn btn-ghost btn-sm" type="button" data-extra-add-cat="'+c.key+'">+ Agregar</button>';
-      html += '</div>';
-      html += '</div></div>';
-    });
-
-    html += '<button class="btn btn-primary btn-block" id="submitOrder" type="button">Enviar pedido</button>';
-
-    main.innerHTML = html;
-
-    main.querySelector("#f_local").addEventListener("change", function(e){ f.local = e.target.value; });
-    main.querySelector("#f_fecha").addEventListener("change", function(e){ f.fecha = e.target.value; });
-    main.querySelector("#f_quien").addEventListener("input", function(e){ f.quienPide = e.target.value; });
-    main.querySelector("#f_notas").addEventListener("input", function(e){ f.notas = e.target.value; });
-
-    main.querySelectorAll("[data-item-id]").forEach(function(inp){
-      inp.addEventListener("input", function(){
-        var id = inp.getAttribute("data-item-id");
-        if(!f.items[id]) return;
-        f.items[id].qty = inp.value;
-      });
-    });
-    main.querySelectorAll("[data-extra-id]").forEach(function(inp){
-      inp.addEventListener("input", function(){
-        var id = inp.getAttribute("data-extra-id");
-        var e = f.extra.find(function(x){return x.tempId===id;});
-        if(e) e.qty = inp.value;
-      });
-    });
-    main.querySelectorAll("[data-rm-extra]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var id = btn.getAttribute("data-rm-extra");
-        f.extra = f.extra.filter(function(x){ return x.tempId!==id; });
-        renderNuevo(main);
-      });
-    });
-    main.querySelectorAll("[data-extra-add-cat]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var cat = btn.getAttribute("data-extra-add-cat");
-        var input = main.querySelector('[data-extra-name-cat="'+cat+'"]');
-        var name = (input.value||"").trim();
-        if(!name){ input.focus(); return; }
-        f.extra.push({tempId:uid(), category:cat, name:name, qty:""});
-        renderNuevo(main);
-      });
-    });
-
-    main.querySelector("#submitOrder").addEventListener("click", function(){ submitOrder(f); });
-  }
-
-  function fieldInput(label, id, type, val){
-    return '<label class="field"><span class="lbl">'+esc(label)+'</span>'+
-      '<input type="'+type+'" id="'+id+'" value="'+esc(val)+'"></label>';
-  }
-  function fieldSelect(label, id, opts, val, withPlaceholder){
-    var html = '<label class="field"><span class="lbl">'+esc(label)+'</span><select id="'+id+'">';
-    if(withPlaceholder) html += '<option value=""'+(val===""?" selected":"")+' disabled>Elegir…</option>';
-    opts.forEach(function(o){
-      html += '<option value="'+esc(o.v)+'"'+(o.v===val?" selected":"")+'>'+esc(o.l)+'</option>';
-    });
-    html += '</select></label>';
-    return html;
-  }
-
-  function submitOrder(f){
-    if(!f.local){ toast("Elegí un local"); return; }
-    if(!f.fecha){ toast("Elegí una fecha"); return; }
-    var items = [];
-    Object.keys(f.items).forEach(function(id){
-      var it = f.items[id];
-      if(it.qty && it.qty.trim()!==""){
-        items.push({ id:it.id, category:it.category, name:it.name, isExtra:false, pedidoCant:it.qty.trim() });
-      }
-    });
-    f.extra.forEach(function(e){
-      if(e.qty && e.qty.trim()!==""){
-        items.push({ id:e.tempId, category:e.category, name:e.name, isExtra:true, pedidoCant:e.qty.trim() });
-      }
-    });
-    if(items.length===0){ toast("Cargá al menos una cantidad"); return; }
-
-    var payload = { local:f.local, fecha:f.fecha, quienPide:(f.quienPide||"").trim(), notas:f.notas||"", items:items };
-    var btn = document.getElementById("submitOrder");
-    if(btn){ btn.disabled = true; btn.textContent = "Enviando…"; }
-    callServer("createPedido", payload).then(function(){
-      lsSet("dc_last_local", f.local);
-      lsSet("dc_quien_pide", payload.quienPide);
-      state.newOrderForm = null;
-      showOrderSuccess(payload);
-      loadData(true);
-    }).catch(function(err){
-      console.error(err);
-      toast("No se pudo enviar: "+(err&&err.message?err.message:"probá de nuevo."));
-      if(btn){ btn.disabled=false; btn.textContent="Enviar pedido"; }
-    });
-  }
-
-  function showOrderSuccess(payload){
-    var main = document.getElementById("main");
-    main.innerHTML =
-      '<div class="panel"><div class="success-screen">'+
-      '<div class="big">✅</div>'+
-      '<h2>Pedido enviado</h2>'+
-      '<p>'+esc(LOCAL_LABEL[payload.local]||payload.local)+' · '+esc(fmtDate(payload.fecha))+' · '+payload.items.length+' ítem'+(payload.items.length===1?"":"s")+'</p>'+
-      '<button class="btn btn-primary" id="anotherOrder" type="button">Cargar otro pedido</button>'+
-      '</div></div>';
-    main.querySelector("#anotherOrder").addEventListener("click", function(){ render(); });
-  }
-
-  // ---------- TAB: Pedidos y envíos (lista) ----------
-  var ESTADO_PEDIDO_INFO = {
-    pendiente: {cls:"badge-pending", label:"Pendiente"},
-    enviado: {cls:"badge-sent", label:"Esperando recepción"},
-    cerrado: {cls:"badge-closed", label:"Cerrado"},
-    rechazado: {cls:"badge-rejected", label:"Rechazado"}
-  };
-  function estadoInfo(estado){
-    return ESTADO_PEDIDO_INFO[estado] || ESTADO_PEDIDO_INFO.pendiente;
-  }
-
-  function renderLista(main){
-    var html = '<div class="panel">';
-    html += '<div class="filters">';
-    html += '<select id="filtEstado">';
-    [["pendiente","Pendientes"],["enviado","Esperando recepción"],["cerrado","Cerrados"],["rechazado","Rechazados"],["todos","Todos"]].forEach(function(o){
-      html += '<option value="'+o[0]+'"'+(state.filterEstado===o[0]?" selected":"")+'>'+o[1]+'</option>';
-    });
-    html += '</select>';
-    html += '<select id="filtLocal"><option value="TODOS"'+(state.filterLocal==="TODOS"?" selected":"")+'>Todos los locales</option>';
-    LOCALES.forEach(function(l){
-      html += '<option value="'+l.key+'"'+(state.filterLocal===l.key?" selected":"")+'>'+esc(l.label)+'</option>';
-    });
-    html += '</select>';
-    html += '<button class="btn btn-ghost btn-sm" id="exportCsv" type="button">⭳ Exportar CSV</button>';
-    html += '</div>';
-
-    var list = pedidos.filter(function(p){
-      if(state.filterEstado!=="todos" && p.estado!==state.filterEstado) return false;
-      if(state.filterLocal!=="TODOS" && p.local!==state.filterLocal) return false;
-      return true;
-    });
-
-    if(list.length===0){
-      html += '<div class="empty"><div class="big">📭</div>No hay pedidos con este filtro.</div>';
+  async function pintarResponsable(){
+    const local = document.getElementById('selLocal').value;
+    const wrap = document.getElementById('responsableWrap');
+    if(esFabrica(local)){
+      if(empleados.length === 0) empleados = await obtenerEmpleados();
+      wrap.innerHTML = `<select id="inpResponsable">${opcionesEmpleados(empleados)}</select>`;
     } else {
-      list.forEach(function(p){
-        var pend = (p.items||[]).filter(function(it){ return it.estadoItem==="pendiente"; }).length;
-        var falt = (p.items||[]).filter(function(it){ return it.estadoItem==="no_enviado"; }).length;
-        var subParts = [(p.items||[]).length + " ítems"];
-        if(pend>0) subParts.push(pend+" sin resolver");
-        if(falt>0) subParts.push(falt+" con faltante");
-        html += '<div class="order-card" data-open="'+p.id+'">';
-        html += '<div class="oc-main">';
-        html += '<div class="oc-local">'+esc(LOCAL_LABEL[p.local]||p.local)+' · '+esc(fmtDate(p.fecha))+'</div>';
-        html += '<div class="oc-sub">'+esc(subParts.join(" · "))+'</div>';
-        html += '</div>';
-        html += '<span class="badge '+estadoInfo(p.estado).cls+'">'+estadoInfo(p.estado).label+'</span>';
-        html += '<span class="oc-arrow">›</span>';
-        html += '</div>';
-      });
-    }
-    html += '</div>';
-    main.innerHTML = html;
-
-    main.querySelector("#filtEstado").addEventListener("change", function(e){ state.filterEstado=e.target.value; render(); });
-    main.querySelector("#filtLocal").addEventListener("change", function(e){ state.filterLocal=e.target.value; render(); });
-    main.querySelector("#exportCsv").addEventListener("click", function(){ exportCsv(list); });
-    main.querySelectorAll("[data-open]").forEach(function(card){
-      card.addEventListener("click", function(){
-        state.detailId = card.getAttribute("data-open");
-        state.editForm = null;
-        render();
-      });
-    });
-  }
-
-  // ---------- exportar historial a CSV (descarga directa en el navegador) ----------
-  function csvField(v){
-    var s = (v==null? "": String(v));
-    if(/[",;\n]/.test(s)) s = '"'+s.replace(/"/g,'""')+'"';
-    return s;
-  }
-  function exportCsv(list){
-    // Los pedidos rechazados nunca se exportan, aunque el filtro activo sea "Todos".
-    var exportable = (list||[]).filter(function(p){ return p.estado!=="rechazado"; });
-    if(exportable.length===0){ toast("No hay pedidos para exportar"); return; }
-    var header = ["Local","Fecha","Ítem","Cant. solicitada","Cant. enviada","Cant. recibida"];
-    var rows = [header];
-    exportable.forEach(function(p){
-      (p.items||[]).forEach(function(it){
-        rows.push([
-          LOCAL_LABEL[p.local]||p.local, fmtDate(p.fecha), it.name,
-          it.pedidoCant||"", it.envioCant||"", it.recibidoCant||""
-        ]);
-      });
-    });
-    var csv = "﻿" + rows.map(function(r){ return r.map(csvField).join(","); }).join("\r\n");
-    var localTag = state.filterLocal==="TODOS" ? "todos" : state.filterLocal.toLowerCase();
-    var filename = "pedidos_insumos_"+localTag+"_"+todayStr()+".csv";
-
-    try{
-      var blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement("a");
-      a.href = url; a.download = filename;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
-      toast("Historial exportado");
-    }catch(err){
-      console.error(err);
-      toast("No se pudo exportar en este navegador");
+      wrap.innerHTML = `<input type="text" id="inpResponsable" placeholder="Nombre y apellido">`;
     }
   }
 
-  // Ítem marcado "no se envía": muestra el motivo/estimado y, si el
-  // pedido ya avanzó (esperando recepción o cerrado), un mini-formulario
-  // para reflotarlo apenas producción efectivamente lo manda.
-  function noEnviadoHtml(it){
-    var html = '<div class="idr-readonly">No se envió'+(it.motivo?' — <b>'+esc(it.motivo)+'</b>':'')+(it.fechaEstimada?' (estimado: '+esc(fmtDate(it.fechaEstimada))+')':'')+'</div>';
-    html += '<div class="idr-controls" style="margin-top:8px">';
-    html += '<input class="qty-input" type="text" inputmode="numeric" placeholder="cant." data-reenvio-qty="'+esc(it.id)+'">';
-    html += '<button class="btn btn-ghost btn-sm" data-reenviar="'+esc(it.id)+'" type="button">Ya se mandó</button>';
-    html += '</div>';
-    return html;
-  }
-
-  // ---------- TAB: detalle de pedido (envío) ----------
-  function renderDetail(main, id){
-    var p = pedidos.find(function(x){ return x.id===id; });
-    if(!p){ state.detailId = null; return renderLista(main); }
-    // Etapas según el estado del pedido:
-    //  "pendiente"  -> producción arma y marca qué se envía (o no)
-    //  "enviado"    -> el local confirma qué recibió realmente
-    //  "cerrado"    -> ya está todo confirmado, solo se muestra un resumen
-    //  "rechazado"  -> se descartó (ej: pedido duplicado), solo lectura
-    var mode = p.estado==="rechazado" ? "rechazado" : (p.estado==="pendiente" ? "envio" : (p.estado==="enviado" ? "recepcion" : "resumen"));
-
-    if(!state.editForm || state.editForm._id!==id || state.editForm._mode!==mode){
-      state.editForm = {
-        _id: id,
-        _mode: mode,
-        quienNombre: mode==="envio" ? lsGet("dc_quien_envia","") : (mode==="recepcion" ? lsGet("dc_quien_recibe","") : ""),
-        items: (p.items||[]).map(function(it){
-          return {
-            id:it.id, category:it.category, name:it.name, isExtra:!!it.isExtra,
-            pedidoCant: it.pedidoCant, envioCant: it.envioCant||"",
-            recibidoCant: it.recibidoCant||"",
-            noEnviado: it.estadoItem==="no_enviado",
-            motivo: it.motivo||"", fechaEstimada: it.fechaEstimada||""
-          };
-        })
+  // una fila por lote. "guardado" (si viene) prellena y bloquea la fila, con
+  // su botón "Editar" para destrabarla puntualmente — igual que en Registrar
+  // producción y Despachar envíos, para que un error de tipeo en la tablet
+  // se corrija guardando de nuevo SOLO ese lote, sin repetir toda la carga.
+  // El botón "+" agrega otra fila del MISMO producto para un segundo
+  // vencimiento (queda vacía y editable, salvo que también venga guardada).
+  function filaProducto(nombre, esExtra, guardado){
+    const g = guardado || {};
+    const yaGuardado = !!guardado;
+    const dis = yaGuardado ? 'disabled' : '';
+    const tr = document.createElement('tr');
+    tr.dataset.item = nombre;
+    if(yaGuardado) tr.classList.add('fila-guardada');
+    tr.innerHTML = `
+      <td>${esExtra ? `<span class="item-extra">↳ otro lote</span>` : nombre}</td>
+      <td><input type="number" min="0" step="1" class="inp-cant" placeholder="0" value="${g.cantidad || ''}" ${dis}></td>
+      <td><input type="date" class="inp-venc" value="${g.vencimiento || ''}" ${dis}></td>
+      <td class="col-add">${esExtra ? '' : '<button type="button" class="add-lote-btn" title="Agregar otro vencimiento para este producto">+</button>'}</td>
+      <td class="col-del">${esExtra ? '<button type="button" class="del-btn" title="Quitar">✕</button>' : ''}</td>
+      <td class="no-print" style="white-space:nowrap;">
+        <button type="button" class="btn secondary btn-guardar-item" style="font-size:12px;padding:5px 9px;${yaGuardado ? 'display:none;' : ''}">Guardar</button>
+        <button type="button" class="btn secondary btn-editar-item" style="font-size:12px;padding:5px 9px;${yaGuardado ? '' : 'display:none;'}">Editar</button>
+      </td>
+    `;
+    if(esExtra){
+      tr.querySelector('.del-btn').onclick = () => tr.remove();
+    } else {
+      tr.querySelector('.add-lote-btn').onclick = () => {
+        tr.insertAdjacentElement('afterend', filaProducto(nombre, true));
       };
     }
-    var f = state.editForm;
-    var byCat = {};
-    CATEGORIES.forEach(function(c){ byCat[c.key]=[]; });
-    f.items.forEach(function(it){ (byCat[it.category]=byCat[it.category]||[]).push(it); });
-
-    var html = '<div class="panel">';
-    html += '<div class="detail-head">';
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">';
-    html += '<button class="back" id="backBtn" type="button" style="padding-bottom:0">‹ Volver a la lista</button>';
-    html += '<div style="display:flex;gap:8px">';
-    if(mode==="envio") html += '<button class="btn btn-ghost btn-sm" id="rejectBtn" type="button" style="color:var(--danger)">✕ Rechazar pedido</button>';
-    html += '<button class="btn btn-ghost btn-sm" id="printBtn" type="button">🖶 Imprimir</button>';
-    html += '</div>';
-    html += '</div>';
-    html += '<h2 style="margin-top:8px">'+esc(LOCAL_LABEL[p.local]||p.local)+'</h2>';
-    html += '<div class="detail-grid" style="margin-top:8px">';
-    html += '<span><b>Fecha:</b> '+esc(fmtDate(p.fecha))+'</span>';
-    if(p.quienPide) html += '<span><b>Pide:</b> '+esc(p.quienPide)+'</span>';
-    if(p.enviadoPor) html += '<span><b>Envió:</b> '+esc(p.enviadoPor)+'</span>';
-    if(p.recibidoPor) html += '<span><b>Recibió:</b> '+esc(p.recibidoPor)+'</span>';
-    html += '<span><b>Cargado:</b> '+esc(fmtDateTime(p.createdAt))+'</span>';
-    html += '<span class="badge '+estadoInfo(p.estado).cls+'">'+estadoInfo(p.estado).label+'</span>';
-    html += '</div>';
-    if(p.notas) html += '<div class="detail-grid" style="margin-top:6px"><span><b>Notas:</b> '+esc(p.notas)+'</span></div>';
-    if(mode==="recepcion") html += '<div class="banner" style="margin:12px 0 0">Registrá acá lo que llegó realmente al local. Lo que falte queda en blanco.</div>';
-    if(mode==="resumen") html += '<div class="banner" style="margin:12px 0 0">Pedido cerrado: ya está confirmado lo pedido, lo enviado y lo recibido.</div>';
-    if(mode==="rechazado") html += '<div class="banner" style="margin:12px 0 0;background:var(--danger-soft);color:var(--danger-ink);border-color:var(--danger)">Pedido rechazado'+(p.motivoRechazo?' — <b>'+esc(p.motivoRechazo)+'</b>':'')+'. No se le va a enviar nada.</div>';
-    html += '</div>';
-
-    CATEGORIES.forEach(function(c){
-      var list = byCat[c.key]||[];
-      if(list.length===0) return;
-      html += '<div class="cat-block">';
-      html += '<div class="cat-title">'+esc(c.label)+'</div>';
-      list.forEach(function(it){
-        var stCls = it.noEnviado ? "st-no_enviado" : (it.envioCant.trim()!=="" ? "st-enviado" : "");
-        html += '<div class="item-detail-row '+stCls+'" data-row="'+esc(it.id)+'">';
-        html += '<div class="idr-top">';
-        html += '<div class="idr-name">'+esc(it.name)+(it.isExtra?'<span class="tag-extra">nuevo</span>':'')+'<div class="idr-pedido">Pedido: <span class="mono">'+esc(it.pedidoCant)+'</span></div></div>';
-        html += '</div>';
-
-        if(mode==="envio"){
-          html += '<div class="idr-controls">';
-          html += '<input class="qty-input" type="text" inputmode="numeric" placeholder="cant." data-envio="'+esc(it.id)+'" value="'+esc(it.envioCant)+'" '+(it.noEnviado?"disabled":"")+'>';
-          html += '<label class="chk"><input type="checkbox" data-noenv="'+esc(it.id)+'" '+(it.noEnviado?"checked":"")+'> No se envía</label>';
-          html += '</div>';
-          if(it.noEnviado){
-            html += '<div class="idr-motivo">';
-            html += '<input type="text" placeholder="Motivo (ej: sin stock)" data-motivo="'+esc(it.id)+'" value="'+esc(it.motivo)+'">';
-            html += '<input type="date" data-festimada="'+esc(it.id)+'" value="'+esc(it.fechaEstimada)+'">';
-            html += '</div>';
-          }
-        } else if(mode==="recepcion"){
-          if(it.noEnviado){
-            html += noEnviadoHtml(it);
-          } else {
-            html += '<div class="idr-controls">';
-            html += '<span class="idr-readonly">Enviado: <b>'+esc(it.envioCant)+'</b></span>';
-            html += '<input class="qty-input" type="text" inputmode="numeric" placeholder="cant." data-recibido="'+esc(it.id)+'" value="'+esc(it.recibidoCant)+'">';
-            html += '<span class="idr-readonly">recibido</span>';
-            html += '</div>';
-          }
-        } else {
-          if(it.noEnviado){
-            html += noEnviadoHtml(it);
-          } else {
-            html += '<div class="idr-readonly">Enviado: <b>'+esc(it.envioCant||"—")+'</b> &nbsp;·&nbsp; Recibido: <b>'+esc(it.recibidoCant||"—")+'</b></div>';
-          }
-        }
-        html += '</div>';
-      });
-      html += '</div>';
-    });
-
-    if(mode==="envio" || mode==="recepcion"){
-      html += '<div class="panel-body" style="border-top:1px dashed var(--border-strong)">';
-      html += fieldInput(mode==="envio"?"¿Quién envía?":"¿Quién recibe?", "quienNombre", "text", f.quienNombre);
-      html += '</div>';
-      html += '<div class="panel-body save-bar">';
-      html += '<button class="btn btn-primary btn-block" id="saveDetail" type="button">'+(mode==="envio"?"Guardar envío":"Confirmar recepción")+'</button>';
-      html += '</div>';
-    }
-    html += '</div>';
-
-    main.innerHTML = html;
-
-    main.querySelector("#backBtn").addEventListener("click", function(){
-      state.detailId = null; state.editForm = null; render();
-    });
-    main.querySelector("#printBtn").addEventListener("click", function(){ printPedido(p); });
-    var rejectBtn = main.querySelector("#rejectBtn");
-    if(rejectBtn){
-      rejectBtn.addEventListener("click", function(){
-        if(!window.confirm("¿Rechazar este pedido? No se le va a enviar nada y desaparece de Pendientes.")) return;
-        var motivo = window.prompt("Motivo del rechazo (opcional, ej: pedido duplicado):") || "";
-        rejectBtn.disabled = true;
-        callServer("rechazarPedido", {pedidoId:p.id, motivo:motivo}).then(function(){
-          toast("Pedido rechazado");
-          state.detailId = null; state.editForm = null;
-          loadData(true);
-        }).catch(function(err){
-          console.error(err);
-          toast("No se pudo rechazar: "+(err&&err.message?err.message:"probá de nuevo."));
-          rejectBtn.disabled = false;
-        });
-      });
-    }
-    main.querySelectorAll("[data-envio]").forEach(function(inp){
-      inp.addEventListener("input", function(){
-        var id = inp.getAttribute("data-envio");
-        var it = f.items.find(function(x){return x.id===id;});
-        if(it) it.envioCant = inp.value;
-      });
-    });
-    main.querySelectorAll("[data-recibido]").forEach(function(inp){
-      inp.addEventListener("input", function(){
-        var id = inp.getAttribute("data-recibido");
-        var it = f.items.find(function(x){return x.id===id;});
-        if(it) it.recibidoCant = inp.value;
-      });
-    });
-    main.querySelectorAll("[data-noenv]").forEach(function(chk){
-      chk.addEventListener("change", function(){
-        var id = chk.getAttribute("data-noenv");
-        var it = f.items.find(function(x){return x.id===id;});
-        if(it){ it.noEnviado = chk.checked; if(chk.checked) it.envioCant=""; }
-        renderDetail(main, state.detailId);
-      });
-    });
-    main.querySelectorAll("[data-motivo]").forEach(function(inp){
-      inp.addEventListener("input", function(){
-        var id = inp.getAttribute("data-motivo");
-        var it = f.items.find(function(x){return x.id===id;});
-        if(it) it.motivo = inp.value;
-      });
-    });
-    main.querySelectorAll("[data-festimada]").forEach(function(inp){
-      inp.addEventListener("change", function(){
-        var id = inp.getAttribute("data-festimada");
-        var it = f.items.find(function(x){return x.id===id;});
-        if(it) it.fechaEstimada = inp.value;
-      });
-    });
-    var quienInp = main.querySelector("#quienNombre");
-    if(quienInp) quienInp.addEventListener("input", function(e){ f.quienNombre = e.target.value; });
-    var saveBtn = main.querySelector("#saveDetail");
-    if(saveBtn) saveBtn.addEventListener("click", function(){ saveDetail(p, mode); });
-
-    main.querySelectorAll("[data-reenviar]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var id = btn.getAttribute("data-reenviar");
-        var qtyInp = main.querySelector('[data-reenvio-qty="'+id+'"]');
-        var qty = qtyInp ? qtyInp.value.trim() : "";
-        if(!qty){ toast("Cargá la cantidad que se manda"); if(qtyInp) qtyInp.focus(); return; }
-        btn.disabled = true;
-        callServer("reenviarItem", {pedidoId:p.id, itemId:id, envioCant:qty}).then(function(){
-          toast("Ítem reenviado. El pedido vuelve a esperar recepción.");
-          state.editForm = null;
-          loadData(true);
-        }).catch(function(err){
-          console.error(err);
-          toast("No se pudo actualizar: "+(err&&err.message?err.message:"probá de nuevo."));
-          btn.disabled = false;
-        });
-      });
-    });
+    tr.querySelector('.btn-guardar-item').onclick = () => guardarItemStock(tr);
+    tr.querySelector('.btn-editar-item').onclick = () => habilitarEdicionFila(tr);
+    return tr;
   }
 
-  function saveDetail(p, mode){
-    var f = state.editForm;
-    var btn = document.getElementById("saveDetail");
-
-    if(mode==="envio"){
-      var items = f.items.map(function(it){
-        var estadoItem = "pendiente";
-        if(it.noEnviado){ estadoItem = "no_enviado"; }
-        else if(it.envioCant && it.envioCant.trim()!==""){ estadoItem = "enviado"; }
-        return {
-          id:it.id, envioCant:it.envioCant||"", estadoItem: estadoItem,
-          motivo: it.noEnviado ? it.motivo : "", fechaEstimada: it.noEnviado ? it.fechaEstimada : ""
-        };
-      });
-      var enviadoPor = (f.quienNombre||"").trim();
-      if(btn){ btn.disabled=true; btn.textContent="Guardando…"; }
-      callServer("updatePedidoEnvio", {pedidoId:p.id, items:items, enviadoPor:enviadoPor}).then(function(){
-        lsSet("dc_quien_envia", enviadoPor);
-        toast("Envío guardado");
-        state.editForm = null;
-        loadData(true);
-      }).catch(function(err){
-        console.error(err);
-        toast("No se pudo guardar: "+(err&&err.message?err.message:"probá de nuevo."));
-        if(btn){ btn.disabled=false; btn.textContent="Guardar envío"; }
-      });
-    } else {
-      var recItems = f.items.filter(function(it){ return !it.noEnviado; }).map(function(it){
-        return { id:it.id, cantRecibida: it.recibidoCant||"" };
-      });
-      var recibidoPor = (f.quienNombre||"").trim();
-      if(btn){ btn.disabled=true; btn.textContent="Guardando…"; }
-      callServer("updatePedidoRecepcion", {pedidoId:p.id, items:recItems, recibidoPor:recibidoPor}).then(function(){
-        lsSet("dc_quien_recibe", recibidoPor);
-        toast("Recepción guardada");
-        state.editForm = null;
-        loadData(true);
-      }).catch(function(err){
-        console.error(err);
-        toast("No se pudo guardar: "+(err&&err.message?err.message:"probá de nuevo."));
-        if(btn){ btn.disabled=false; btn.textContent="Confirmar recepción"; }
-      });
-    }
-  }
-
-  // ---------- imprimir pedido (para armar en depósito) ----------
-  function printPedido(p){
-    var byCat = groupByCategory(p.items||[]);
-    var html = '<h1>Pedido de Insumos — '+esc(LOCAL_LABEL[p.local]||p.local)+'</h1>';
-    html += '<div class="ps-meta">Fecha: '+esc(fmtDate(p.fecha))+(p.quienPide?' &nbsp;·&nbsp; Pide: '+esc(p.quienPide):'')+'</div>';
-    if(p.notas) html += '<div class="ps-meta">Notas: '+esc(p.notas)+'</div>';
-    CATEGORIES.forEach(function(c){
-      var list = (byCat[c.key]||[]).filter(function(it){ return it.pedidoCant && String(it.pedidoCant).trim()!==""; });
-      if(list.length===0) return;
-      html += '<div class="ps-cat">'+esc(c.label)+'</div>';
-      list.forEach(function(it){
-        html += '<div class="ps-item"><span class="ps-check"></span><span class="ps-name">'+esc(it.name)+(it.isExtra?' (nuevo)':'')+'</span><span class="ps-qty">'+esc(it.pedidoCant)+'</span></div>';
-      });
-    });
-    html += '<div class="ps-meta" style="margin-top:22px">Preparado por: _______________________ &nbsp;&nbsp; Fecha: ___/___/___</div>';
-    var sheet = document.getElementById("printSheet");
-    sheet.innerHTML = html;
-    window.print();
-  }
-
-  // ---------- TAB: catálogo (protegido con clave) ----------
-  function permMsg(err, action){
-    if(err && err.message && err.message.indexOf("PERMISO_DENEGADO")!==-1){
-      return "Clave incorrecta: la edición del catálogo está restringida.";
-    }
-    return "No se pudo "+action+". Probá de nuevo.";
-  }
-
-  var adminPassword_ = null; // solo en memoria; se pierde al recargar la página
-
-  function renderCatalogo(main){
-    var byCat = groupByCategory(catalogItems);
-    var unlocked = state.adminUnlocked;
-    var html = '';
-
-    if(!unlocked){
-      html += '<div style="display:flex;justify-content:flex-end;margin-bottom:14px">'+
-        '<button class="btn btn-ghost btn-sm" id="unlockCatalog" type="button">🔒 Editar catálogo</button>'+
-        '</div>';
-    } else {
-      html += '<div class="banner" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
-        '<span>Modo edición activo. Los cambios aplican a los <b>próximos</b> pedidos; los ya cargados no se modifican.</span>'+
-        '<button class="btn btn-ghost btn-sm" id="lockCatalog" type="button">Salir del modo edición</button>'+
-        '</div>';
-    }
-
-    CATEGORIES.forEach(function(c){
-      var list = byCat[c.key].slice().sort(function(a,b){ return (a.order||0)-(b.order||0) || a.name.localeCompare(b.name); });
-      html += '<div class="panel"><div class="cat-block">';
-      html += '<div class="cat-title">'+esc(c.label)+' <span class="mono" style="font-weight:500;opacity:.7">('+list.length+')</span></div>';
-      list.forEach(function(it, idx){
-        html += '<div class="catalog-item">';
-        html += '<div class="ci-name">'+esc(it.name)+'</div>';
-        if(unlocked){
-          html += '<div class="ci-controls">';
-          html += '<button class="rm-btn" data-move-up="'+it.id+'" title="Subir" type="button" '+(idx===0?"disabled":"")+'>↑</button>';
-          html += '<button class="rm-btn" data-move-down="'+it.id+'" title="Bajar" type="button" '+(idx===list.length-1?"disabled":"")+'>↓</button>';
-          html += '<select class="ci-cat-select" data-move-cat="'+it.id+'" title="Cambiar de categoría">';
-          CATEGORIES.forEach(function(c2){
-            html += '<option value="'+c2.key+'"'+(c2.key===c.key?" selected":"")+'>'+esc(c2.label)+'</option>';
-          });
-          html += '</select>';
-          html += '<button class="rm-btn" data-del-item="'+it.id+'" title="Eliminar" type="button">×</button>';
-          html += '</div>';
-        }
-        html += '</div>';
-      });
-      if(unlocked){
-        html += '<div class="catalog-add">';
-        html += '<input type="text" placeholder="Nuevo ítem en '+esc(c.label)+'…" data-newcat="'+c.key+'">';
-        html += '<button class="btn btn-ghost btn-sm" data-addcat="'+c.key+'" type="button">+ Agregar</button>';
-        html += '</div>';
+  // arma las filas de un producto: si ya tiene uno o más lotes guardados hoy
+  // (guardadosPorItem), una fila prellenada/bloqueada por cada uno; si no,
+  // una sola fila vacía y editable.
+  function tablaDe(labelCantidad, colHeader, items, guardadosPorItem){
+    const table = document.createElement('table');
+    table.className = 'lotes';
+    table.innerHTML = `
+      <thead><tr>
+        <th>${colHeader}</th>
+        <th class="col-cant">${labelCantidad}</th>
+        <th class="col-venc">Vencimiento</th>
+        <th class="col-add"></th>
+        <th class="col-del"></th>
+        <th class="no-print"></th>
+      </tr></thead>
+      <tbody></tbody>`;
+    const tbody = table.querySelector('tbody');
+    items.forEach(nombre => {
+      const guardados = (guardadosPorItem && guardadosPorItem[nombre]) || [];
+      if(guardados.length === 0){
+        tbody.appendChild(filaProducto(nombre, false, null));
+      } else {
+        guardados.forEach((g, i) => tbody.appendChild(filaProducto(nombre, i > 0, g)));
       }
-      html += '</div></div>';
     });
-    main.innerHTML = html;
-
-    var unlockBtn = document.getElementById("unlockCatalog");
-    if(unlockBtn){
-      unlockBtn.addEventListener("click", function(){
-        var pass = window.prompt("Clave para editar el catálogo:");
-        if(pass==null) return;
-        unlockBtn.disabled = true;
-        callServer("checkAdmin", {password:pass}).then(function(res){
-          if(res && res.ok){
-            adminPassword_ = pass;
-            state.adminUnlocked = true;
-            renderCatalogo(main);
-          } else {
-            toast("Clave incorrecta.");
-            unlockBtn.disabled = false;
-          }
-        }).catch(function(err){ console.error(err); toast("No se pudo verificar la clave."); unlockBtn.disabled=false; });
-      });
-    }
-    var lockBtn = document.getElementById("lockCatalog");
-    if(lockBtn){
-      lockBtn.addEventListener("click", function(){
-        adminPassword_ = null;
-        state.adminUnlocked = false;
-        renderCatalogo(main);
-      });
-    }
-
-    main.querySelectorAll("[data-del-item]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var id = btn.getAttribute("data-del-item");
-        callServer("deleteCatalogItem", {id:id, password:adminPassword_}).then(function(){
-          toast("Ítem eliminado");
-          loadData(true);
-        }).catch(function(err){ console.error(err); toast(permMsg(err, "eliminar")); });
-      });
-    });
-    main.querySelectorAll("[data-move-up]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        if(btn.disabled) return;
-        var id = btn.getAttribute("data-move-up");
-        callServer("moveCatalogItem", {id:id, direction:"up", password:adminPassword_}).then(function(){
-          loadData(true);
-        }).catch(function(err){ console.error(err); toast(permMsg(err, "mover")); });
-      });
-    });
-    main.querySelectorAll("[data-move-down]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        if(btn.disabled) return;
-        var id = btn.getAttribute("data-move-down");
-        callServer("moveCatalogItem", {id:id, direction:"down", password:adminPassword_}).then(function(){
-          loadData(true);
-        }).catch(function(err){ console.error(err); toast(permMsg(err, "mover")); });
-      });
-    });
-    main.querySelectorAll("[data-move-cat]").forEach(function(sel){
-      sel.addEventListener("change", function(){
-        var id = sel.getAttribute("data-move-cat");
-        var categoria = sel.value;
-        callServer("setCatalogItemCategory", {id:id, categoria:categoria, password:adminPassword_}).then(function(){
-          toast("Ítem movido de categoría");
-          loadData(true);
-        }).catch(function(err){ console.error(err); toast(permMsg(err, "mover")); renderCatalogo(main); });
-      });
-    });
-    main.querySelectorAll("[data-addcat]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var cat = btn.getAttribute("data-addcat");
-        var input = main.querySelector('[data-newcat="'+cat+'"]');
-        var name = (input.value||"").trim();
-        if(!name){ input.focus(); return; }
-        callServer("addCatalogItem", {categoria:cat, nombre:name, password:adminPassword_}).then(function(){
-          input.value="";
-          toast("Ítem agregado");
-          loadData(true);
-        }).catch(function(err){ console.error(err); toast(permMsg(err, "agregar")); });
-      });
-    });
+    return table;
   }
 
-  // ---------- nav / refresh ----------
-  document.getElementById("tabs").addEventListener("click", function(e){
-    var btn = e.target.closest("button[data-tab]");
-    if(!btn) return;
-    state.tab = btn.getAttribute("data-tab");
-    if(state.tab!=="pedidos"){ state.detailId=null; }
-    render();
+  async function pintarTabla(){
+    const local = document.getElementById('selLocal').value;
+    const fecha = document.getElementById('fechaCarga').value;
+    const modo = modoDeLocal(local);
+    const labelCantidad = modo === 'relleno' ? 'Kilos' : modo === 'disco' ? 'Docenas' : 'Cantidad';
+    const cont = document.getElementById('tablaLotesContainer');
+    const nav = document.getElementById('catNav');
+    cont.className = 'loading'; cont.textContent = 'Cargando…';
+    nav.innerHTML = '';
+
+    let guardadosPorItem = {};
+    try{
+      const r = await fetch(`${APPS_SCRIPT_URL}?action=obtenerStockCargadoDia&local=${encodeURIComponent(local)}&fecha=${fecha}`);
+      const data = await r.json();
+      if(!data.error){
+        (data.items || []).forEach(it => {
+          guardadosPorItem[it.sabor] = guardadosPorItem[it.sabor] || [];
+          guardadosPorItem[it.sabor].push(it);
+        });
+      }
+    }catch(err){ /* si falla la consulta, se sigue con la tabla vacía y editable */ }
+
+    // se cambió de local o de fecha mientras cargaba esta consulta
+    if(document.getElementById('selLocal').value !== local || document.getElementById('fechaCarga').value !== fecha) return;
+
+    cont.className = ''; cont.innerHTML = '';
+
+    if(modo === 'sabor'){
+      nombresCategorias.forEach((cat, i) => {
+        const id = `cat-${i}`;
+        const h = document.createElement('h4');
+        h.className = 'cat-heading';
+        h.id = id;
+        h.textContent = cat;
+        cont.appendChild(h);
+        cont.appendChild(tablaDe(labelCantidad, 'Sabor / ítem', categorias[cat], guardadosPorItem));
+
+        const a = document.createElement('a');
+        a.href = `#${id}`;
+        a.textContent = cat;
+        nav.appendChild(a);
+      });
+    } else if(modo === 'relleno'){
+      cont.appendChild(tablaDe(labelCantidad, 'Relleno', rellenos, guardadosPorItem));
+    } else {
+      cont.appendChild(tablaDe(labelCantidad, 'Tipo de disco', TIPOS_DISCO, guardadosPorItem));
+    }
+  }
+
+  document.getElementById('selLocal').onchange = () => { pintarTabla(); pintarResponsable(); };
+  document.getElementById('fechaCarga').onchange = pintarTabla;
+  pintarTabla(); // arranca mostrando el listado completo del primer local
+  pintarResponsable();
+
+  // "Enviar stock": guarda de una sola vez cualquier lote que haya quedado
+  // sin guardar con su propio botón.
+  document.getElementById('btnGuardar').onclick = async () => {
+    const local = document.getElementById('selLocal').value;
+    const responsable = document.getElementById('inpResponsable').value.trim();
+    const fecha = document.getElementById('fechaCarga').value;
+    const msg = document.getElementById('msg');
+    if(!responsable){
+      msg.className = 'msg err'; msg.textContent = 'Indicá quién está cargando este stock.'; return;
+    }
+    const filas = [...document.querySelectorAll('#tablaLotesContainer tr[data-item]:not(.fila-guardada)')];
+    const items = filas.map(tr => ({
+      sabor: tr.dataset.item,
+      cantidad: tr.querySelector('.inp-cant').value,
+      vencimiento: tr.querySelector('.inp-venc').value
+    })).filter(it => it.cantidad && Number(it.cantidad) > 0 && it.vencimiento);
+
+    if(items.length === 0){
+      msg.className = 'msg err'; msg.textContent = 'Cargá al menos un lote con cantidad y vencimiento (los que ya guardaste con su propio botón no hace falta repetirlos).'; return;
+    }
+    const btn = document.getElementById('btnGuardar');
+    btn.disabled = true; btn.textContent = 'Guardando...';
+    try{
+      const r = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'registrarStock', local, fecha, responsable, items })
+      });
+      const data = await r.json();
+      if(data.error) throw new Error(data.error);
+      filas.forEach(tr => {
+        if(Number(tr.querySelector('.inp-cant').value) > 0 && tr.querySelector('.inp-venc').value){
+          tr.classList.add('fila-guardada');
+          [...tr.querySelectorAll('input')].forEach(el => el.disabled = true);
+          const btnG = tr.querySelector('.btn-guardar-item');
+          if(btnG){ btnG.textContent = '✓ Guardado'; btnG.style.display = 'none'; }
+          const btnE = tr.querySelector('.btn-editar-item');
+          if(btnE) btnE.style.display = '';
+        }
+      });
+      msg.className = 'msg ok';
+      msg.textContent = `Enviado: ${data.registros_guardados} lote(s) más para ${local}.`;
+    }catch(err){
+      msg.className = 'msg err'; msg.textContent = 'No se pudo guardar: ' + err.message;
+    }finally{
+      btn.disabled = false; btn.textContent = 'Enviar stock';
+    }
+  };
+}
+
+/* ---------------------------------------------------------------------
+   Pantalla FÁBRICA: qué producir hoy
+   --------------------------------------------------------------------- */
+async function renderFabrica(){
+  app.innerHTML = `
+    <button class="back" onclick="irA('home')">← Volver</button>
+    <div class="fab-toolbar">
+      <header class="top" style="margin:0;"><h1>Producción de hoy</h1></header>
+      <div class="field-row">
+        <label>Ver para el día</label>
+        <input type="date" id="fechaCalculo" value="${hoyISO()}">
+      </div>
+    </div>
+    <div class="tabs" id="tabsFabrica" style="display:none;">
+      <button class="tab-btn active" data-tab="produccion">Producción</button>
+      <button class="tab-btn" data-tab="cocina">Cocina</button>
+      <button class="tab-btn" data-tab="discos">Discos</button>
+      <button class="btn secondary" id="btnImprimir" style="margin-left:auto;" onclick="window.print()">🖶 Imprimir</button>
+    </div>
+    <div id="contenidoFabrica" class="loading">Calculando…</div>
+  `;
+  document.getElementById('fechaCalculo').onchange = cargarCalculo;
+  cargarCalculo();
+}
+
+let ULTIMO_CALCULO = null;
+let PREP_ACTUAL = null;
+let TAB_ACTIVA = 'produccion';
+
+async function cargarCalculo(){
+  const fecha = document.getElementById('fechaCalculo').value;
+  const cont = document.getElementById('contenidoFabrica');
+  cont.className = 'loading'; cont.textContent = 'Calculando…';
+  document.getElementById('tabsFabrica').style.display = 'none';
+  try{
+    const [r, rPrep] = await Promise.all([
+      fetch(`${APPS_SCRIPT_URL}?action=calcularTodo&fecha=${fecha}`),
+      fetch(`${APPS_SCRIPT_URL}?action=calcularPrepDiaAnterior&fecha=${fecha}`)
+    ]);
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    const prep = await rPrep.json();
+    ULTIMO_CALCULO = data;
+    PREP_ACTUAL = prep.error ? null : prep;
+    document.getElementById('tabsFabrica').style.display = 'flex';
+    [...document.querySelectorAll('.tab-btn')].forEach(b => {
+      b.onclick = () => { TAB_ACTIVA = b.dataset.tab; marcarTabActiva(); pintarTabActiva(); };
+    });
+    TAB_ACTIVA = 'produccion';
+    marcarTabActiva();
+    pintarTabActiva();
+  }catch(err){
+    cont.className = ''; cont.innerHTML = `<div class="msg err" style="display:block;">No se pudo calcular: ${err.message}</div>`;
+  }
+}
+
+function marcarTabActiva(){
+  [...document.querySelectorAll('.tab-btn')].forEach(b => b.classList.toggle('active', b.dataset.tab === TAB_ACTIVA));
+}
+
+function pintarTabActiva(){
+  if(TAB_ACTIVA === 'produccion') pintarProduccion(ULTIMO_CALCULO);
+  if(TAB_ACTIVA === 'cocina') pintarCocina(ULTIMO_CALCULO);
+  if(TAB_ACTIVA === 'discos') pintarDiscos(ULTIMO_CALCULO);
+}
+
+// convierte 'yyyy-MM-dd' (lo que devuelve el Apps Script) a 'dd-mm-aaaa' para
+// mostrar — la fecha se guarda y se calcula siempre en ISO, esto es solo visual.
+function fmtFecha(iso){
+  if(!iso) return '';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(!m) return iso;
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
+function bloqueAlertas(data){
+  if(!data.alertasVencimiento || !data.alertasVencimiento.length) return '';
+  return `
+    <div class="alert-box">
+      <h3>Vender ya — no llega vivo a la próxima reposición</h3>
+      <ul>
+        ${data.alertasVencimiento.map(a => `<li>${a.sabor} — ${a.local}: ${a.cantidad} u. (vence ${fmtFecha(a.vencimiento)})</li>`).join('')}
+      </ul>
+    </div>`;
+}
+
+// redondeo a entero para mostrar en pantalla (el cálculo interno sigue con decimales)
+function ent(n){ return Math.round(Number(n) || 0).toLocaleString('es-AR'); }
+
+// bloque "para mañana": Rollos de Jamón y Queso + Canastas que hay que
+// dejar armados HOY (se ve en la pestaña Producción, arriba de lo del día).
+function bloquePrepDiaAnterior(){
+  const prep = PREP_ACTUAL;
+  if(!prep) return '';
+  const rollos = Number(prep.rollosJyQ) || 0;
+  const canastas = (prep.canastas || []).filter(c => c.aHacerUnidades > 0);
+  if(rollos <= 0 && canastas.length === 0) return '';
+  const filaRollos = rollos > 0 ? `<tr><td>Rollos de Jamón y Queso</td><td class="num"><strong>${ent(rollos)}</strong></td></tr>` : '';
+  const filasCanastas = canastas.map(c => `<tr><td>Canasta — ${c.sabor}</td><td class="num"><strong>${ent(c.aHacerUnidades)}</strong></td></tr>`).join('');
+  const notaPct = (prep.porcentajeCocina != null && Number(prep.porcentajeCocina) !== 100)
+    ? `<p style="color:var(--ink-soft);font-size:12px;margin-top:6px;">Ya aplicado el ${ent(prep.porcentajeCocina)}% de venta a cubrir guardado hoy para Cocina.</p>`
+    : '';
+  return `
+    <h3 style="font-size:15px;margin:20px 0 8px;">Para mañana (${prep.diaManana}, ${fmtFecha(prep.fechaManana)}) — armar/moldear HOY</h3>
+    <table class="prod">
+      <thead><tr><th>Ítem</th><th class="num">Cantidad</th></tr></thead>
+      <tbody>${filaRollos}${filasCanastas}</tbody>
+    </table>${notaPct}`;
+}
+
+/* ---- Pestaña PRODUCCIÓN: qué armar hoy, por sabor (todos los rubros) ---- */
+function pintarProduccion(data){
+  const cont = document.getElementById('contenidoFabrica');
+  // Dips y Postres los elabora Cocina (no Producción) — se muestran en la
+  // pestaña Cocina, junto con Preparados y Rellenos.
+  const filas = data.produccion.filter(f => f.aHacerUnidades > 0 && f.rubro !== 'Dips' && f.rubro !== 'Postres');
+  const alertaHtml = bloqueAlertas(data);
+  const prepHtml = bloquePrepDiaAnterior();
+
+  const tituloSector = `<h2 style="font-size:18px;margin:0 0 6px;">Producción del día — Sector Producción</h2>`;
+
+  if(filas.length === 0){
+    cont.className = '';
+    cont.innerHTML = tituloSector + alertaHtml + prepHtml + `<div class="empty">Nada para armar/reponer el ${data.dia.toLowerCase()} — el stock cargado alcanza.</div>`;
+    return;
+  }
+
+  const rubros = [...new Set(filas.map(f => f.rubro))];
+  rubros.sort((a,b) => (a.startsWith('Empanadas') ? -1 : b.startsWith('Empanadas') ? 1 : a.localeCompare(b)));
+
+  const bloques = rubros.map(rubro => {
+    const items = filas.filter(f => f.rubro === rubro);
+    const esEmpanada = rubro.startsWith('Empanadas');
+    return `
+      <h3 style="font-size:15px;margin:20px 0 8px;">${rubro}</h3>
+      <table class="prod">
+        <thead>
+          <tr>
+            <th>Sabor / ítem</th>
+            ${esEmpanada ? '<th>Se cocinó</th>' : ''}
+            <th class="num">Objetivo</th>
+            ${esEmpanada ? '<th>Días que cubre</th>' : ''}
+            <th class="num">Stock disponible</th>
+            <th class="num">${esEmpanada ? 'Stock necesario' : 'A reponer'} (u.)</th>
+            ${esEmpanada ? '<th class="num">Docenas</th>' : ''}
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(f => `
+            <tr>
+              <td>${f.sabor}</td>
+              ${esEmpanada ? `<td>${f.diaCocina}${f.diaCocina !== f.diaArmado ? ` <span class="badge reposo">reposo</span>` : ''}</td>` : ''}
+              <td class="num">${ent(f.objetivoUnidades)}</td>
+              ${esEmpanada ? `<td style="color:var(--ink-soft);font-size:12.5px;">${f.diasQueCubre}</td>` : ''}
+              <td class="num">${ent(f.stockValidoUnidades)}</td>
+              <td class="num"><strong>${ent(f.aHacerUnidades)}</strong></td>
+              ${esEmpanada ? `<td class="num">${ent(f.aHacerDocenas)}</td>` : ''}
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }).join('');
+
+  cont.className = '';
+  cont.innerHTML = tituloSector + alertaHtml + prepHtml + `
+    <p style="color:var(--ink-soft);font-size:13px;">${data.dia}, ${fmtFecha(data.fecha)} — ${filas.length} ítem(s) con faltante</p>
+    ${bloques}
+  `;
+}
+
+/* ---- Pestaña COCINA: todo lo que elabora Cocina hoy — Preparados, Rellenos,
+   Dips y Postres (Dips/Postres los arma Cocina, no Producción) ---- */
+function pintarCocina(data){
+  const cont = document.getElementById('contenidoFabrica');
+  const filasRelleno = data.cocina.filter(f => f.kilosDeRelleno > 0);
+  const tituloSector = `<h2 style="font-size:18px;margin:0 0 6px;">Producción del día — Sector Cocina</h2>`;
+
+  const tablaSimple = (rubro, titulo) => {
+    const items = (data.produccion || []).filter(f => f.rubro === rubro && f.aHacerUnidades > 0);
+    if(items.length === 0) return '';
+    return `
+      <h3 style="font-size:15px;margin:20px 0 8px;">${titulo}</h3>
+      <table class="prod">
+        <thead><tr><th>Sabor / ítem</th><th class="num">Objetivo</th><th class="num">Stock disponible</th><th class="num">A reponer (u.)</th></tr></thead>
+        <tbody>
+          ${items.map(f => `
+            <tr>
+              <td>${f.sabor}</td>
+              <td class="num">${ent(f.objetivoUnidades)}</td>
+              <td class="num">${ent(f.stockValidoUnidades)}</td>
+              <td class="num"><strong>${ent(f.aHacerUnidades)}</strong></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  };
+  const bloqueDips = tablaSimple('Dips', 'Dips');
+  const bloquePostres = tablaSimple('Postres', 'Postres');
+
+  if(filasRelleno.length === 0 && !bloqueDips && !bloquePostres){
+    cont.className = '';
+    cont.innerHTML = tituloSector + `<div class="empty">Cocina no elabora nada el ${data.dia.toLowerCase()}.</div>`;
+    return;
+  }
+
+  const tablaRellenos = filasRelleno.length === 0 ? '' : `
+    <h3 style="font-size:15px;margin:20px 0 8px;">Rellenos</h3>
+    <div class="field-row no-print" style="max-width:420px;">
+      <label>% de venta a cubrir <span style="color:var(--ink-soft);font-weight:400;">(los locales siempre tienen algo de stock — bajalo si no hace falta cubrir el 100%). Se guarda por día: una vez guardado queda fijo para hoy (también para Registrar producción) — tocá "Reabrir" si necesitás cambiarlo.</span></label>
+      <div id="pctCocinaControl"></div>
+    </div>
+    <p style="color:var(--ink-soft);font-size:13px;"><span id="totalKilosCocina"></span> kg de relleno en total</p>
+    <table class="prod">
+      <thead><tr><th>Relleno</th><th>Sabores que arma</th><th>Días que cubre</th><th class="num">Kg de relleno</th><th class="num">Ollas</th></tr></thead>
+      <tbody>
+        ${filasRelleno.map(f => `
+          <tr data-kilos-base="${f.kilosDeRelleno}" data-relleno="${f.relleno}">
+            <td><strong>${f.relleno}</strong></td>
+            <td style="color:var(--ink-soft);font-size:12.5px;">${f.sabores.map(s => s.sabor).join(', ')}</td>
+            <td style="color:var(--ink-soft);font-size:12.5px;">${f.diasQueCubre}</td>
+            <td class="num kg-relleno"><strong></strong></td>
+            <td class="num ollas-relleno">—</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+    <div id="gramajeOllasRellenos"></div>`;
+
+  cont.className = '';
+  // el % con el que el SERVIDOR ya escaló data.cocina[].kilosDeRelleno (null
+  // = todavía no se guardó nada hoy, se usó 100% de referencia) — lo guardo
+  // en el propio contenedor para que recalcularCocinaPct() sepa contra qué
+  // proporción está previsualizando mientras Carolina todavía no guardó.
+  cont.dataset.pctBase = data.porcentajeCocina || 100;
+  cont.innerHTML = tituloSector + `
+    <p style="color:var(--ink-soft);font-size:13px;">${data.dia}, ${fmtFecha(data.fecha)}</p>
+    <div id="preparadosCocina"></div>
+    ${tablaRellenos}
+    ${bloqueDips}
+    ${bloquePostres}
+  `;
+
+  if(filasRelleno.length > 0){
+    pintarControlPctCocina(data.fecha, data.porcentajeCocina);
+    recalcularCocinaPct();
+  }
+  cargarPreparadosCocina(data.fecha);
+}
+
+// Control del % de venta a cubrir: si ya se guardó HOY, se muestra bloqueado
+// con un botón "Reabrir"; si no, editable con un botón "Guardar %". El valor
+// que de verdad usa el cálculo (Preparados, Ollas, y Registrar producción →
+// Cocina) es el guardado en el servidor — tocar el número acá solo
+// previsualiza los kg de Rellenos de esta tabla, no cambia nada hasta
+// apretar "Guardar %".
+function pintarControlPctCocina(fecha, porcentajeGuardado){
+  const cont = document.getElementById('pctCocinaControl');
+  if(!cont) return;
+  if(porcentajeGuardado != null){
+    cont.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <input type="number" value="${porcentajeGuardado}" disabled style="width:90px;">
+        <button type="button" class="btn secondary" id="btnReabrirPct">Reabrir</button>
+        <span style="color:var(--ink-soft);font-size:12px;">guardado para hoy</span>
+      </div>`;
+    document.getElementById('btnReabrirPct').onclick = () => pintarControlPctCocina(fecha, null);
+  } else {
+    cont.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <input type="number" id="inpPctRelleno" min="1" max="200" step="5" value="${porcentajeGuardado == null ? 100 : porcentajeGuardado}" style="width:90px;">
+        <button type="button" class="btn" id="btnGuardarPct">Guardar %</button>
+      </div>`;
+    document.getElementById('inpPctRelleno').oninput = recalcularCocinaPct;
+    document.getElementById('btnGuardarPct').onclick = () => guardarPctCocina(fecha);
+  }
+}
+
+async function guardarPctCocina(fecha){
+  const inp = document.getElementById('inpPctRelleno');
+  const pct = Number(inp.value);
+  if(!pct || pct <= 0){ alert('Ingresá un % válido.'); return; }
+  const btn = document.getElementById('btnGuardarPct');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try{
+    const r = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'guardarPorcentajeCocina', fecha, pct })
+    });
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    cargarCalculo(); // recarga todo (Producción/Cocina/Discos) ya con el % guardado
+  }catch(err){
+    btn.disabled = false; btn.textContent = 'Guardar %';
+    alert('No se pudo guardar el %: ' + err.message);
+  }
+}
+
+// pequeño detalle plegable con el gramaje de ingredientes escalado a una
+// olla (8 kg) — se usa tanto para Preparados como para Rellenos directos.
+function bloqueGramajeOllas(items){
+  if(!items || items.length === 0) return '';
+  return items.map(o => `
+    <details style="margin-top:8px;font-size:12.5px;">
+      <summary style="cursor:pointer;color:var(--ink-soft);">Gramaje por olla (8 kg) — ${o.nombre}</summary>
+      <ul style="margin:8px 0 0 18px;">
+        ${(o.gramajePorOlla || []).map(g => `<li>${g.ingrediente}: ${ent(g.cantidad)} ${g.medida || ''}</li>`).join('')}
+      </ul>
+    </details>`).join('');
+}
+
+// "explota" las fichas técnicas contra lo que ya se calculó, para saber
+// cuántos kilos de cada Preparado (ej. Puré, Sofrito, Relleno Carne, Pollo
+// Grille) hace falta cocinar hoy, y de paso trae las Ollas (calcularOllas):
+// cuántos lotes de 8 kg de carne cruda arma Cocina, tanto de los Preparados
+// que se comparten entre varios rellenos como de los rellenos que usan un
+// ingrediente crudo directo (ver el comentario de calcularOllas en Code.gs).
+async function cargarPreparadosCocina(fecha){
+  const cont = document.getElementById('preparadosCocina');
+  if(!cont) return;
+  cont.innerHTML = `<h3 style="font-size:15px;margin:0 0 8px;">Preparados</h3><p class="loading">Buscando preparados…</p>`;
+  try{
+    const [rDem, rOllas] = await Promise.all([
+      fetch(`${APPS_SCRIPT_URL}?action=calcularDemandaPreparados&fecha=${encodeURIComponent(fecha)}`),
+      fetch(`${APPS_SCRIPT_URL}?action=calcularOllas&fecha=${encodeURIComponent(fecha)}`)
+    ]);
+    const data = await rDem.json();
+    if(data.error) throw new Error(data.error);
+    const ollasData = await rOllas.json();
+    const ollasPrep = ollasData.error ? [] : (ollasData.preparados || []);
+    const ollasRelleno = ollasData.error ? [] : (ollasData.rellenos || []);
+
+    // completa la columna "Ollas" de la tabla de Rellenos, ya renderizada
+    const gramajeRellenosCont = document.getElementById('gramajeOllasRellenos');
+    ollasRelleno.forEach(o => {
+      const fila = [...document.querySelectorAll('tr[data-relleno]')].find(tr => tr.dataset.relleno === o.nombre);
+      const celda = fila ? fila.querySelector('.ollas-relleno') : null;
+      if(celda) celda.innerHTML = `<strong>${o.ollas}</strong> <span style="color:var(--ink-soft);font-size:11px;">(${ent(o.kilosNecesarios)} kg de ${o.ingredienteClave})</span>`;
+    });
+    if(gramajeRellenosCont) gramajeRellenosCont.innerHTML = bloqueGramajeOllas(ollasRelleno);
+
+    const demanda = data.demandaPreparados || [];
+    if(demanda.length === 0){
+      cont.innerHTML = `<h3 style="font-size:15px;margin:0 0 8px;">Preparados</h3><div class="empty">Nada para preparar hoy.</div>`;
+      return;
+    }
+    const ollasPorNombre = {};
+    ollasPrep.forEach(o => { ollasPorNombre[normalizarFicha(o.nombre)] = o; });
+
+    // ojo: acá NO se muestra "Gramaje por olla" de los Preparados en olla —
+    // los 8 kg de la olla son de la MATERIA PRIMA cruda (ej. recortes de
+    // pollo), no del Preparado ya terminado, así que escalar la ficha del
+    // Preparado a 8 kg da un gramaje que no corresponde a lo que realmente
+    // entra en la olla. Confirmado con Carolina (26/09/2026). El detalle de
+    // gramaje SÍ es correcto para los Rellenos directos (arriba,
+    // gramajeRellenosCont) porque ahí los 8 kg son del mismo ingrediente
+    // crudo que se está escalando.
+    cont.innerHTML = `
+      <h3 style="font-size:15px;margin:0 0 8px;">Preparados</h3>
+      <table class="prod">
+        <thead><tr><th>Preparado</th><th class="num">Cantidad</th><th class="num">Ollas</th></tr></thead>
+        <tbody>
+          ${demanda.map(d => {
+            const o = ollasPorNombre[normalizarFicha(d.preparado)];
+            return `<tr><td><strong>${d.preparado}</strong></td><td class="num">${ent(d.cantidad)} ${d.unidad}</td><td class="num">${o ? `<strong>${o.ollas}</strong>` : '—'}</td></tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      ${(data.avisos || []).length ? `<p style="color:var(--alert);font-size:12px;margin-top:8px;">${data.avisos.join(' ')}</p>` : ''}
+    `;
+  }catch(err){
+    cont.innerHTML = `<p style="color:var(--ink-soft);font-size:12px;">No se pudieron calcular los preparados: ${err.message}</p>`;
+  }
+}
+
+// el % de venta a cubrir es un ajuste manual de Cocina (no toca la fórmula de
+// Producción/Envíos, que sigue siendo venta − stock). Los kg de relleno que
+// vienen del servidor (data-kilos-base) ya están escalados al % GUARDADO
+// para hoy (cont.dataset.pctBase, 100 si todavía no se guardó nada) — acá
+// solo se previsualiza qué pasaría con el % que se está tipeando ahora,
+// mientras no se guarde, con el factor entre ambos.
+function recalcularCocinaPct(){
+  const cont = document.getElementById('contenidoFabrica');
+  const pctBase = Number(cont.dataset.pctBase) || 100;
+  const inp = document.getElementById('inpPctRelleno');
+  const pctVista = inp ? (Number(inp.value) || pctBase) : pctBase;
+  const factorVista = pctVista / pctBase;
+  let total = 0;
+  document.querySelectorAll('#contenidoFabrica table.prod tbody tr[data-kilos-base]').forEach(tr => {
+    const base = Number(tr.dataset.kilosBase) || 0;
+    const ajustado = base * factorVista;
+    total += ajustado;
+    tr.querySelector('.kg-relleno strong').textContent = ent(ajustado);
   });
-  document.getElementById("refreshBtn").addEventListener("click", function(){
-    loadData(false);
+  const totalEl = document.getElementById('totalKilosCocina');
+  if(totalEl) totalEl.textContent = ent(total);
+}
+
+/* ---- Pestaña DISCOS: discos que necesita la tanda de producción de hoy ---- */
+function pintarDiscos(data){
+  const cont = document.getElementById('contenidoFabrica');
+  const d = data.discos;
+  const fila = (nombre, obj) => `
+      <tr>
+        <td>${nombre}</td>
+        <td class="num">${ent(obj.docenas)}</td>
+        <td class="num">${ent(obj.unidades)}</td>
+      </tr>`;
+  cont.className = '';
+  cont.innerHTML = `
+    <h2 style="font-size:18px;margin:0 0 6px;">Producción del día — Sector Discos</h2>
+    <p style="color:var(--ink-soft);font-size:13px;">${data.dia}, ${fmtFecha(data.fecha)} — discos necesarios según lo que producción arma hoy</p>
+    <table class="prod">
+      <thead><tr><th>Tipo de disco</th><th class="num">Docenas</th><th class="num">Unidades</th></tr></thead>
+      <tbody>
+        ${fila('Horno', d.horno)}
+        ${fila('Horno con recorte', d.hornoConRecorte)}
+        ${fila('Frito', d.frito)}
+      </tbody>
+    </table>
+    <p style="color:var(--ink-soft);font-size:12px;margin-top:10px;">Horno + Horno con recorte comparten la misma máquina (${ent(d.totalHornoDocenas)} docenas combinadas). Frito es una máquina aparte.</p>
+  `;
+}
+
+/* ---------------------------------------------------------------------
+   Pantalla REGISTRAR PRODUCCIÓN (trazabilidad de turno) — por sector.
+   Por ahora solo está armado el sector Producción (con la planilla en
+   papel "Registro de Producción y Trazabilidad"); Cocina y Discos quedan
+   con un aviso hasta tener esas planillas.
+   --------------------------------------------------------------------- */
+let CALCULO_REGISTRO = null;
+let CATEGORIAS_REGISTRO = null;
+let CATEGORIA_POR_SABOR_REGISTRO = null;
+let EMPLEADOS_REGISTRO = null;
+let PREP_REGISTRO = null;
+let SECTOR_REGISTRO_ACTIVO = 'produccion';
+const NOMBRE_ROLLOS_JYQ = 'Rollos de Jamón y Queso';
+
+async function renderRegistroProduccion(){
+  app.innerHTML = `
+    <button class="back" onclick="irA('home')">← Volver</button>
+    <div class="fab-toolbar">
+      <header class="top" style="margin:0;"><h1>Registrar producción</h1></header>
+      <div class="field-row">
+        <label>Fecha del turno</label>
+        <input type="date" id="fechaRegistro" value="${hoyISO()}">
+      </div>
+    </div>
+    <div class="tabs" id="tabsRegistro">
+      <button class="tab-btn active" data-sector="produccion">Producción</button>
+      <button class="tab-btn" data-sector="cocina">Cocina</button>
+      <button class="tab-btn" data-sector="discos">Discos</button>
+      <button class="btn secondary" id="btnImprimirRegistro" style="margin-left:auto;" onclick="window.print()">🖶 Imprimir</button>
+    </div>
+    <div id="contenidoRegistro" class="loading">Cargando…</div>
+    <div class="msg" id="msgRegistro"></div>
+  `;
+  [...document.querySelectorAll('#tabsRegistro .tab-btn')].forEach(b => {
+    b.onclick = () => {
+      [...document.querySelectorAll('#tabsRegistro .tab-btn')].forEach(x => x.classList.toggle('active', x === b));
+      pintarSectorRegistro(b.dataset.sector);
+    };
+  });
+  document.getElementById('fechaRegistro').onchange = cargarRegistroProduccion;
+  cargarRegistroProduccion();
+}
+
+async function cargarRegistroProduccion(){
+  const fecha = document.getElementById('fechaRegistro').value;
+  const cont = document.getElementById('contenidoRegistro');
+  cont.className = 'loading'; cont.textContent = 'Cargando…';
+  const msg = document.getElementById('msgRegistro');
+  msg.className = 'msg'; msg.textContent = '';
+  try{
+    const [r, rPrep, categorias, categoriaPorSabor, empleados] = await Promise.all([
+      fetch(`${APPS_SCRIPT_URL}?action=calcularTodo&fecha=${fecha}`),
+      fetch(`${APPS_SCRIPT_URL}?action=calcularPrepDiaAnterior&fecha=${fecha}`),
+      obtenerCategorias(),
+      obtenerCategoriaPorSabor(),
+      obtenerEmpleados()
+    ]);
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    const prep = await rPrep.json();
+    CALCULO_REGISTRO = data;
+    PREP_REGISTRO = prep.error ? { rollosJyQ: 0, canastas: [] } : prep;
+    CATEGORIAS_REGISTRO = categorias;
+    CATEGORIA_POR_SABOR_REGISTRO = categoriaPorSabor;
+    EMPLEADOS_REGISTRO = empleados;
+    pintarSectorRegistro(SECTOR_REGISTRO_ACTIVO);
+  }catch(err){
+    cont.className = ''; cont.innerHTML = `<div class="msg err" style="display:block;">No se pudo cargar: ${err.message}</div>`;
+  }
+}
+
+function pintarSectorRegistro(sector){
+  SECTOR_REGISTRO_ACTIVO = sector;
+  const cont = document.getElementById('contenidoRegistro');
+  cont.className = '';
+  if(sector === 'produccion'){
+    pintarRegistroProduccionSector();
+    return;
+  }
+  if(sector === 'cocina'){
+    pintarRegistroCocinaSector();
+    return;
+  }
+  if(sector === 'discos'){
+    pintarRegistroDiscosSector();
+    return;
+  }
+}
+
+// Registrar producción — sector COCINA: por cada relleno que se cocina hoy,
+// se muestran TODOS los ingredientes de su ficha técnica, y de TODOS se
+// registra el bruto real usado (con su propio botón Guardar/Editar). A los
+// que además tienen un rinde de referencia cargado se les puede cargar
+// también el rinde REAL para comparar contra la ficha; los demás (sin rinde
+// de referencia, ej. condimentos) solo llevan el bruto real, sin esa
+// comparación — no hay contra qué compararlos. Si no se guarda nada para un
+// ingrediente, se entiende que se usó el valor de la ficha (Cantidad/Rinde
+// de Ref_RecetaDetalle). Arriba de todo se muestran las Ollas (lotes de 8 kg
+// de carne cruda): los Preparados compartidos (Relleno Carne, Pollo Grille)
+// en un bloque propio, y para cada relleno que arma sus ollas directo (sin
+// pasar por un Preparado) el detalle aparece encima de su tabla de insumos.
+async function pintarRegistroCocinaSector(){
+  const cont = document.getElementById('contenidoRegistro');
+  cont.innerHTML = `<p class="loading">Buscando fichas técnicas…</p>`;
+
+  const fecha = document.getElementById('fechaRegistro').value;
+  const cocina = (CALCULO_REGISTRO.cocina || []).filter(f => f.kilosDeRelleno > 0);
+  const dipsPostres = (CALCULO_REGISTRO.produccion || []).filter(f => f.aHacerUnidades > 0 && (f.rubro === 'Dips' || f.rubro === 'Postres'));
+  if(cocina.length === 0 && dipsPostres.length === 0){
+    cont.innerHTML = `<div class="empty">Cocina no elabora nada el ${CALCULO_REGISTRO.dia.toLowerCase()}.</div>`;
+    return;
+  }
+
+  const [recetas, ollasResp, trazaResp, finalResp] = await Promise.all([
+    obtenerRecetas(),
+    fetch(`${APPS_SCRIPT_URL}?action=calcularOllas&fecha=${encodeURIComponent(fecha)}`).then(r => r.json()).catch(() => ({})),
+    fetch(`${APPS_SCRIPT_URL}?action=listarTrazabilidadCocinaDia&fecha=${encodeURIComponent(fecha)}`).then(r => r.json()).catch(() => ({})),
+    fetch(`${APPS_SCRIPT_URL}?action=listarRecetasFinalizadas&fecha=${encodeURIComponent(fecha)}`).then(r => r.json()).catch(() => ({}))
+  ]);
+  const ollasData = (ollasResp && !ollasResp.error) ? ollasResp : { preparados: [], rellenos: [] };
+
+  // lo ya guardado hoy por ingrediente (para repintar los inputs con el
+  // valor real cargado, en vez de arrancar en blanco cada vez que se entra o
+  // recarga la pantalla) y las recetas ya "enviadas final" hoy (que quedan
+  // con la tabla entera bloqueada — ver bloqueRegistroReceta).
+  const trazaGuardada = {};
+  ((trazaResp && !trazaResp.error && trazaResp.items) || []).forEach(it => {
+    trazaGuardada[normalizarFicha(it.relleno) + '|' + normalizarFicha(it.ingrediente)] = it;
+  });
+  const recetasFinalizadasSet = new Set(
+    ((finalResp && !finalResp.error && finalResp.recetas) || []).map(r => normalizarFicha(r))
+  );
+
+  if(recetas.detalle.length === 0){
+    cont.innerHTML = `
+      <div class="empty">Todavía no importaste ninguna ficha técnica — sin eso no sé qué insumos controlar acá.</div>
+      <div class="actions"><button class="btn secondary" onclick="irA('fichas')">Ir a Fichas técnicas</button></div>
+    `;
+    return;
+  }
+
+  cont.innerHTML = '';
+  const intro = document.createElement('p');
+  intro.style.cssText = 'color:var(--ink-soft);font-size:13px;';
+  intro.textContent = `${CALCULO_REGISTRO.dia}, ${fmtFecha(fecha)} — cargá el bruto real de cada insumo (y el rinde real cuando aplique) sobre el TOTAL de hoy; si no cargás nada, se toma el valor de la ficha.`;
+  cont.appendChild(intro);
+
+  if((ollasData.preparados || []).length){
+    const hPrep = document.createElement('h4');
+    hPrep.className = 'cat-heading';
+    hPrep.textContent = 'Preparados en olla (8 kg) — resumen';
+    cont.appendChild(hPrep);
+    const tablaPrep = document.createElement('table');
+    tablaPrep.className = 'prod';
+    tablaPrep.innerHTML = `
+      <thead><tr><th>Preparado</th><th class="num">Total</th><th class="num">Ollas</th></tr></thead>
+      <tbody>${ollasData.preparados.map(o => `<tr><td><strong>${o.nombre}</strong></td><td class="num">${ent(o.kilos)} KG</td><td class="num"><strong>${o.ollas}</strong></td></tr>`).join('')}</tbody>`;
+    cont.appendChild(tablaPrep);
+  }
+
+  // encuentra el rinde de una receta (Relleno, Preparado, Dip o Postre) EN LA
+  // UNIDAD pedida (KG para Rellenos/Preparados, UN para Dips/Postres), para
+  // poder escalar su ficha del "un batch" al total que hace falta cocinar
+  // hoy. El rinde de una ficha puede venir cargado en dos unidades a la vez
+  // (ej. Dips: "3 KG" y, debajo, "75 UN") — por eso mira los dos pares.
+  function rindeEnUnidad(nombreReceta, unidadObjetivo){
+    const cab = recetas.cabecera.find(r => normalizarFicha(r.Receta) === normalizarFicha(nombreReceta));
+    if(!cab) return 0;
+    if(normalizarFicha(cab.RindeUnidad) === unidadObjetivo) return Number(cab.RindeCantidad) || 0;
+    if(normalizarFicha(cab.RindeUnidad2) === unidadObjetivo) return Number(cab.RindeCantidad2) || 0;
+    return 0;
+  }
+
+  // Bloque de registro de UNA receta (Relleno, Preparado en olla, Dip o
+  // Postre): título grande, referencia de ollas (colapsable, solo
+  // informativa, cuando aplica) y la tabla de insumos — TODOS escalados al
+  // total de HOY, no a los valores "de un batch" que trae la ficha. El
+  // registro (Bruto real / Rinde real) es siempre sobre ese total, nunca por
+  // olla. unidadHoy es 'KG' para Rellenos/Preparados y 'UN' para Dips/Postres
+  // (que se miden en unidades, no en kilos).
+  function bloqueRegistroReceta(nombreReceta, cantidadHoy, unidadHoy, subtitulo, infoOllasHtml){
+    const ingredientesReceta = recetas.detalle.filter(d => normalizarFicha(d.Receta) === normalizarFicha(nombreReceta));
+    if(ingredientesReceta.length === 0) return false;
+
+    const rinde = rindeEnUnidad(nombreReceta, unidadHoy);
+    const factor = rinde > 0 ? (cantidadHoy / rinde) : 1;
+
+    const finalizada = recetasFinalizadasSet.has(normalizarFicha(nombreReceta));
+
+    const h = document.createElement('h4');
+    h.className = 'cat-heading receta-heading';
+    h.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;';
+    h.innerHTML = `
+      <span>${nombreReceta} — ${ent(cantidadHoy)} ${unidadHoy === 'UN' ? 'un.' : 'kg'} calculados hoy${subtitulo || ''}</span>
+      <span class="no-print">${finalizada
+        ? `<span style="color:#2a7a4a;font-size:12.5px;font-weight:600;margin-right:6px;">✓ Enviado final</span><button type="button" class="btn secondary btn-reabrir-receta" style="font-size:12px;padding:5px 9px;">Reabrir</button>`
+        : `<button type="button" class="btn btn-finalizar-receta" style="font-size:12px;padding:5px 9px;">Enviar final</button>`}</span>
+    `;
+    cont.appendChild(h);
+    const btnFinalizar = h.querySelector('.btn-finalizar-receta');
+    if(btnFinalizar) btnFinalizar.onclick = () => finalizarReceta(nombreReceta, fecha);
+    const btnReabrir = h.querySelector('.btn-reabrir-receta');
+    if(btnReabrir) btnReabrir.onclick = () => reabrirReceta(nombreReceta, fecha);
+
+    if(finalizada){
+      const avisoFinal = document.createElement('p');
+      avisoFinal.style.cssText = 'font-size:12px;color:#2a7a4a;margin:0 0 8px;';
+      avisoFinal.textContent = 'Esta receta ya está enviada como final — sus insumos entraron al informe de "Totales del día" y la tabla queda bloqueada. Tocá "Reabrir" para volver a editarla.';
+      cont.appendChild(avisoFinal);
+    }
+
+    if(infoOllasHtml){
+      const divOllas = document.createElement('div');
+      divOllas.style.cssText = 'font-size:12.5px;color:var(--ink-soft);margin:2px 0 10px;';
+      divOllas.innerHTML = infoOllasHtml;
+      cont.appendChild(divOllas);
+    }
+
+    const wrap = document.createElement('div');
+    wrap.style.overflowX = 'auto';
+    const table = document.createElement('table');
+    table.className = 'lotes traza';
+    table.innerHTML = `
+      <thead><tr>
+        <th>Insumo</th>
+        <th class="num">Bruto ficha (hoy)</th>
+        <th class="num">Bruto real</th>
+        <th class="num">Rinde ficha (hoy)</th>
+        <th class="num">Rinde real</th>
+        <th class="no-print"></th>
+      </tr></thead>
+      <tbody></tbody>`;
+    const tbody = table.querySelector('tbody');
+    ingredientesReceta.forEach(ing => {
+      const tieneRinde = ing.Rinde !== '' && ing.Rinde != null;
+      const cantidadHoyIng = (Number(ing.Cantidad) || 0) * factor;
+      const rindeHoyIng = tieneRinde ? (Number(ing.Rinde) || 0) * factor : null;
+      const guardado = trazaGuardada[normalizarFicha(nombreReceta) + '|' + normalizarFicha(ing.Ingrediente)];
+      const yaGuardado = !!guardado;
+      const bloqueado = finalizada || yaGuardado;
+      const valorBruto = (guardado && guardado.cantidadBrutoReal !== '' && guardado.cantidadBrutoReal != null) ? guardado.cantidadBrutoReal : '';
+      const valorRinde = (guardado && guardado.rindeReal !== '' && guardado.rindeReal != null) ? guardado.rindeReal : '';
+      const tr = document.createElement('tr');
+      tr.dataset.relleno = nombreReceta;
+      tr.dataset.ingrediente = ing.Ingrediente;
+      if(bloqueado) tr.classList.add('fila-guardada');
+      tr.innerHTML = `
+        <td>${ing.Ingrediente}</td>
+        <td class="num" style="color:var(--ink-soft);">${ent(cantidadHoyIng)} ${ing.Medida || ''}</td>
+        <td><input type="number" min="0" step="0.01" class="inp-bruto-real" style="width:90px;" placeholder="${ent(cantidadHoyIng)}" value="${valorBruto}" ${bloqueado ? 'disabled' : ''}></td>
+        <td class="num" style="color:var(--ink-soft);">${tieneRinde ? `${ent(rindeHoyIng)} ${ing.Medida || ''}` : `<span style="font-size:11px;">sin control de rinde</span>`}</td>
+        <td>${tieneRinde ? `<input type="number" min="0" step="0.01" class="inp-rinde-real" style="width:90px;" placeholder="${ent(rindeHoyIng)}" value="${valorRinde}" ${bloqueado ? 'disabled' : ''}>` : ''}</td>
+        <td style="white-space:nowrap;" class="no-print">${finalizada ? '' : `
+          <button type="button" class="btn secondary btn-guardar-item" style="font-size:12px;padding:5px 9px;${yaGuardado ? 'display:none;' : ''}">Guardar</button>
+          <button type="button" class="btn secondary btn-editar-item" style="font-size:12px;padding:5px 9px;${yaGuardado ? '' : 'display:none;'}">Editar</button>
+        `}</td>
+      `;
+      if(!finalizada){
+        tr.querySelector('.btn-guardar-item').onclick = () => guardarItemCocina(tr, fecha);
+        tr.querySelector('.btn-editar-item').onclick = () => habilitarEdicionFila(tr);
+      }
+      tbody.appendChild(tr);
+    });
+    wrap.appendChild(table);
+    cont.appendChild(wrap);
+    return true;
+  }
+
+  let algunBloque = false;
+
+  // Preparados que se cocinan en olla (Relleno Carne, Pollo Grille): el
+  // registro de insumos va sobre el TOTAL de ESE preparado — las ollas quedan
+  // solo como referencia (no como el campo a completar; eso ya lo pidió
+  // Carolina expresamente: "el registro tiene que ser sobre el total, con
+  // una solapita para ver por olla si hace falta"). Ojo: acá NO va el
+  // gramaje por olla — los 8 kg de la olla son de la materia prima cruda
+  // (recortes), no del Preparado ya terminado (ver el comentario en
+  // cargarPreparadosCocina). Confirmado con Carolina (26/09/2026).
+  (ollasData.preparados || []).forEach(o => {
+    const infoOllasHtml = `<strong>Referencia:</strong> hoy arma ${o.ollas} olla(s) de este preparado (una olla completa son 8 kg) — el registro de insumos de abajo es sobre el TOTAL de hoy, no por olla.`;
+    if(bloqueRegistroReceta(o.nombre, o.kilos, 'KG', ` — Preparado (lo usan: ${(o.usan || []).join(', ')})`, infoOllasHtml)) algunBloque = true;
   });
 
-  // ---------- boot ----------
-  loadData(false);
-})();
+  // Rellenos que se cocinan hoy
+  cocina.forEach(f => {
+    const infoOllas = (ollasData.rellenos || []).find(o => o.nombre === f.relleno);
+    const infoOllasHtml = infoOllas
+      ? `<strong>Referencia:</strong> hoy arma ${infoOllas.ollas} olla(s) (usa ${ent(infoOllas.kilosNecesarios)} kg de ${infoOllas.ingredienteClave} — una olla completa son 8 kg) — el registro de insumos de abajo es sobre el TOTAL de hoy, no por olla.` + bloqueGramajeOllas([infoOllas])
+      : '';
+    if(bloqueRegistroReceta(f.relleno, f.kilosDeRelleno, 'KG', '', infoOllasHtml)) algunBloque = true;
+  });
+
+  // Dips y Postres: los arma Cocina igual que los Rellenos, pero se miden en
+  // UNIDADES — la ficha escala contra el rinde en UN (no en KG). No tienen
+  // ollas. Confirmado con Carolina (26/09/2026).
+  ['Dips', 'Postres'].forEach(rubro => {
+    const items = dipsPostres.filter(f => f.rubro === rubro);
+    if(items.length === 0) return;
+    const hRubro = document.createElement('h4');
+    hRubro.className = 'cat-heading';
+    hRubro.textContent = rubro;
+    cont.appendChild(hRubro);
+    items.forEach(f => {
+      if(bloqueRegistroReceta(f.sabor, f.aHacerUnidades, 'UN', '', '')) algunBloque = true;
+    });
+  });
+
+  if(!algunBloque){
+    cont.innerHTML += `<div class="empty" style="margin-top:14px;">No encontré la ficha técnica de ninguno de los rellenos, dips o postres de hoy.</div>`;
+  }
+}
+
+async function guardarItemCocina(tr, fecha){
+  const btn = tr.querySelector('.btn-guardar-item');
+  const inputBruto = tr.querySelector('.inp-bruto-real');
+  const inputRinde = tr.querySelector('.inp-rinde-real');
+  const cantidadBrutoReal = inputBruto ? inputBruto.value : '';
+  const rindeReal = inputRinde ? inputRinde.value : '';
+  if(!cantidadBrutoReal && !rindeReal){
+    alert('Cargá el bruto real antes de guardar.');
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try{
+    const r = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'registrarTrazabilidadCocinaItem',
+        fecha, relleno: tr.dataset.relleno, ingrediente: tr.dataset.ingrediente,
+        cantidadBrutoReal, rindeReal
+      })
+    });
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    tr.classList.add('fila-guardada');
+    [...tr.querySelectorAll('input')].forEach(el => el.disabled = true);
+    btn.textContent = '✓ Guardado'; btn.style.display = 'none';
+    const btnEditar = tr.querySelector('.btn-editar-item');
+    if(btnEditar) btnEditar.style.display = '';
+  }catch(err){
+    btn.disabled = false; btn.textContent = 'Guardar';
+    alert('No se pudo guardar: ' + err.message);
+  }
+}
+
+// "Enviar final" de una receta completa (Relleno/Preparado/Dip/Postre): a
+// partir de ahí sus insumos entran al informe de "Totales del día" y su
+// tabla queda bloqueada entera. "Reabrir" la vuelve a abrir. Ambas
+// simplemente vuelven a pintar todo el sector para que quede consistente
+// con lo que ya haya guardado por ingrediente.
+async function finalizarReceta(receta, fecha){
+  if(!confirm(`¿Enviar "${receta}" como final? Se va a bloquear toda su tabla de insumos y va a entrar al informe de Totales del día.`)) return;
+  try{
+    const r = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'finalizarRecetaCocina', fecha, receta })
+    });
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    pintarRegistroCocinaSector();
+  }catch(err){
+    alert('No se pudo enviar como final: ' + err.message);
+  }
+}
+
+async function reabrirReceta(receta, fecha){
+  try{
+    const r = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'reabrirRecetaCocina', fecha, receta })
+    });
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    pintarRegistroCocinaSector();
+  }catch(err){
+    alert('No se pudo reabrir: ' + err.message);
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Pantalla INFORMES: por ahora, el total REAL de insumos consumidos en un
+   día — suma SOLO las recetas (Rellenos/Preparados/Dips/Postres) que ya se
+   enviaron como final desde "Registrar producción → Cocina" ese día; lo que
+   todavía no se envió como final no cuenta acá. Confirmado con Carolina
+   (26/09/2026).
+   --------------------------------------------------------------------- */
+async function renderInformes(){
+  app.innerHTML = `
+    <button class="back" onclick="irA('home')">← Volver</button>
+    <div class="fab-toolbar">
+      <header class="top" style="margin:0;"><h1>Informes</h1></header>
+      <div class="field-row">
+        <label>Ver para el día</label>
+        <input type="date" id="fechaInforme" value="${hoyISO()}">
+      </div>
+      <button class="btn secondary" id="btnImprimirInforme" style="margin-left:auto;" onclick="window.print()">🖶 Imprimir</button>
+    </div>
+    <div id="contenidoInforme" class="loading">Cargando…</div>
+  `;
+  document.getElementById('fechaInforme').onchange = cargarInformeInsumos;
+  cargarInformeInsumos();
+}
+
+async function cargarInformeInsumos(){
+  const fecha = document.getElementById('fechaInforme').value;
+  const cont = document.getElementById('contenidoInforme');
+  cont.className = 'loading'; cont.textContent = 'Cargando…';
+  try{
+    const r = await fetch(`${APPS_SCRIPT_URL}?action=calcularInsumosRealesDia&fecha=${encodeURIComponent(fecha)}`);
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    cont.className = '';
+    const recetasFinal = data.recetasFinalizadas || [];
+    const totales = data.totalesPorIngrediente || [];
+    if(recetasFinal.length === 0){
+      cont.innerHTML = `
+        <p style="color:var(--ink-soft);font-size:13px;">${data.dia}, ${fmtFecha(fecha)}</p>
+        <div class="empty">Todavía no se envió ninguna receta como final este día en "Registrar producción → Cocina" — este informe solo suma insumos de recetas ya finalizadas.</div>
+      `;
+      return;
+    }
+    cont.innerHTML = `
+      <h2 style="font-size:18px;margin:0 0 6px;">Total real de insumos usados — Cocina</h2>
+      <p style="color:var(--ink-soft);font-size:13px;">${data.dia}, ${fmtFecha(fecha)} — recetas ya finalizadas (${recetasFinal.length}): ${recetasFinal.join(', ')}</p>
+      <table class="prod">
+        <thead><tr><th>Insumo</th><th class="num">Total usado</th></tr></thead>
+        <tbody>
+          ${totales.map(t => `<tr><td>${t.ingrediente}</td><td class="num"><strong>${ent(t.cantidad)}</strong> ${t.unidad}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+  }catch(err){
+    cont.className = '';
+    cont.innerHTML = `<div class="msg err" style="display:block;">No se pudo cargar: ${err.message}</div>`;
+  }
+}
+
+// arma el bloque "puestos" de una máquina: 3 desplegables (empleado en cada
+// posición, de la hoja "Empleados"), igual a la planilla en papel.
+// valoresGuardados = { entrada, relleno, salida } ya guardados (o null); si
+// bloqueado, queda todo deshabilitado (turno finalizado).
+function bloquePuestosMaquina(titulo, idBase, empleados, valoresGuardados, bloqueado){
+  const v = valoresGuardados || {};
+  const dis = bloqueado ? 'disabled' : '';
+  const div = document.createElement('div');
+  div.style.marginBottom = '16px';
+  const h = document.createElement('h4');
+  h.className = 'cat-heading';
+  h.textContent = titulo + ' — puestos';
+  div.appendChild(h);
+  const table = document.createElement('table');
+  table.className = 'lotes';
+  table.dataset.maquina = idBase;
+  table.innerHTML = `
+    <thead><tr><th>Entrada</th><th>Relleno</th><th>Salida</th></tr></thead>
+    <tbody><tr>
+      <td><select class="inp-puesto" data-puesto="entrada" ${dis}>${opcionesEmpleadosSeleccion(empleados, v.entrada)}</select></td>
+      <td><select class="inp-puesto" data-puesto="relleno" ${dis}>${opcionesEmpleadosSeleccion(empleados, v.relleno)}</select></td>
+      <td><select class="inp-puesto" data-puesto="salida" ${dis}>${opcionesEmpleadosSeleccion(empleados, v.salida)}</select></td>
+    </tr></tbody>`;
+  div.appendChild(table);
+  return div;
+}
+
+const THEAD_REGISTRO_PRODUCCION = `
+    <thead><tr>
+      <th>Sabor</th>
+      <th class="num">A producir (calc.)</th>
+      <th>Máquina Nº /<br>Responsable</th>
+      <th>Velocidad</th>
+      <th>Disco lote</th>
+      <th>Peso prom.<br>tanda discos</th>
+      <th>Relleno fecha</th>
+      <th>Peso inicial<br>relleno (kg)</th>
+      <th>Peso final<br>relleno (kg)</th>
+      <th>Hora inicio</th>
+      <th>Hora fin</th>
+      <th>Total<br>producción</th>
+      <th>Discos<br>dañados</th>
+      <th class="no-print"></th>
+    </tr></thead>`;
+
+function crearTablaRegistroProduccion(){
+  const wrap = document.createElement('div');
+  wrap.style.overflowX = 'auto';
+  const table = document.createElement('table');
+  table.className = 'lotes traza';
+  table.innerHTML = THEAD_REGISTRO_PRODUCCION + '<tbody></tbody>';
+  wrap.appendChild(table);
+  return { wrap, tbody: table.querySelector('tbody') };
+}
+
+// arma una fila de la tabla de Producción, reutilizada por las 3 secciones
+// (Producción por sabor / Canastas completas / Extras de producción).
+// - etiqueta: texto visible en la celda "Sabor".
+// - saborKey: la clave que se guarda como Sabor en TrazabilidadProduccion —
+//   para las filas de "Molde de canasta" es distinta del nombre real del
+//   sabor (para no pisar la fila de la Canasta completa de ese mismo sabor,
+//   ver registrarTrazabilidadItem en Code.gs, que upsertea por Fecha+Sabor).
+// - usaResponsable: true = desplegable de Responsable (Canastas, Rollos de
+//   Jamón y Queso); false = desplegable de Máquina Nº (sabores normales).
+// - guardado: item ya guardado para este saborKey (o undefined).
+// - bloqueadoGlobal: turno ya cerrado -> toda la fila queda de solo lectura,
+//   sin botones de Guardar/Editar.
+function filaRegistroProduccion(etiqueta, saborKey, aHacerMostrar, etiquetaExtra, usaResponsable, empleados, guardado, bloqueadoGlobal){
+  const g = guardado || {};
+  const yaGuardado = !!guardado;
+  const bloqueado = bloqueadoGlobal || yaGuardado;
+  const dis = bloqueado ? 'disabled' : '';
+  const celdaMaquina = usaResponsable
+    ? `<select class="inp-responsable-canasta" style="min-width:130px;" ${dis}>${opcionesEmpleadosSeleccion(empleados, g.responsable)}</select>`
+    : `<select class="inp-maq-num" style="width:56px;" ${dis}>
+        <option value=""></option>
+        <option value="1" ${g.maquinaNumero === '1' ? 'selected' : ''}>1</option>
+        <option value="2" ${g.maquinaNumero === '2' ? 'selected' : ''}>2</option>
+      </select>`;
+
+  const tr = document.createElement('tr');
+  tr.dataset.sabor = saborKey;
+  if(bloqueado) tr.classList.add('fila-guardada');
+  tr.innerHTML = `
+    <td>${etiqueta}${etiquetaExtra || ''}</td>
+    <td class="num" style="color:var(--ink-soft);">${aHacerMostrar != null ? ent(aHacerMostrar) : '—'}</td>
+    <td>${celdaMaquina}</td>
+    <td><input type="text" class="inp-maq-vel" style="width:64px;" value="${g.maquinaVelocidad || ''}" ${dis}></td>
+    <td><input type="text" class="inp-disco-lote" style="width:90px;" value="${g.discosLote || ''}" ${dis}></td>
+    <td><input type="number" min="0" step="0.01" class="inp-peso-prom" style="width:80px;" value="${g.pesoPromTandaDiscos || ''}" ${dis}></td>
+    <td><input type="date" class="inp-relleno-fecha" value="${g.rellenoFecha || ''}" ${dis}></td>
+    <td><input type="number" min="0" step="0.01" class="inp-peso-inicial" style="width:80px;" value="${g.pesoInicialRelleno || ''}" ${dis}></td>
+    <td><input type="number" min="0" step="0.01" class="inp-peso-final" style="width:80px;" value="${g.pesoFinalRelleno || ''}" ${dis}></td>
+    <td><input type="time" class="inp-hora-inicio" value="${g.horaInicio || ''}" ${dis}></td>
+    <td><input type="time" class="inp-hora-fin" value="${g.horaFin || ''}" ${dis}></td>
+    <td><input type="number" min="0" step="1" class="inp-total-prod" style="width:80px;" value="${g.totalProduccion || ''}" ${dis}></td>
+    <td><input type="number" min="0" step="1" class="inp-discos-danados" style="width:64px;" value="${g.discosDanados || ''}" ${dis}></td>
+    <td class="no-print" style="white-space:nowrap;">${bloqueadoGlobal ? '' : `
+      <button type="button" class="btn secondary btn-guardar-item" style="font-size:12px;padding:5px 9px;${yaGuardado ? 'display:none;' : ''}">Guardar</button>
+      <button type="button" class="btn secondary btn-editar-item" style="font-size:12px;padding:5px 9px;${yaGuardado ? '' : 'display:none;'}">Editar</button>
+    `}</td>
+  `;
+  if(!bloqueadoGlobal){
+    tr.querySelector('.btn-guardar-item').onclick = () => guardarItemTrazabilidad(tr);
+    tr.querySelector('.btn-editar-item').onclick = () => habilitarEdicionFila(tr);
+  }
+  return tr;
+}
+
+async function pintarRegistroProduccionSector(){
+  const cont = document.getElementById('contenidoRegistro');
+  const fecha = document.getElementById('fechaRegistro').value;
+  cont.innerHTML = '<div class="loading">Cargando…</div>';
+
+  const data = CALCULO_REGISTRO;
+  const prep = PREP_REGISTRO || {};
+  const categorias = CATEGORIAS_REGISTRO || {};
+  const categoriaPorSabor = CATEGORIA_POR_SABOR_REGISTRO || {};
+
+  let estado;
+  try{
+    const r = await fetch(`${APPS_SCRIPT_URL}?action=obtenerRegistroProduccionDia&fecha=${fecha}`);
+    estado = await r.json();
+    if(estado.error) throw new Error(estado.error);
+  }catch(err){
+    cont.innerHTML = `<div class="msg err" style="display:block;">No se pudo cargar el registro guardado: ${err.message}</div>`;
+    return;
+  }
+  if(SECTOR_REGISTRO_ACTIVO !== 'produccion') return; // cambió de pestaña mientras cargaba
+
+  const guardadoPorSabor = {};
+  (estado.items || []).forEach(it => { guardadoPorSabor[it.sabor] = it; });
+  const bloqueadoGlobal = !!estado.finalizado;
+
+  // sabores normales (Empanadas Horno + Frito) sin las Canastas, que van
+  // aparte en su propia sección más abajo.
+  const todasEmpanadas = [...(categorias['Empanadas Horno'] || []), ...(categorias['Empanadas Frito'] || [])];
+  const sabores = todasEmpanadas.filter(n => categoriaPorSabor[n] !== 'Canasta');
+  const saboresCanasta = todasEmpanadas.filter(n => categoriaPorSabor[n] === 'Canasta');
+
+  const porSabor = {};
+  (data.produccion || []).forEach(f => { if(f.tipoCalculo === 'Calendario') porSabor[f.sabor] = f; });
+  const canastaPorSabor = {};
+  (prep.canastas || []).forEach(c => { canastaPorSabor[c.sabor] = c; });
+
+  cont.innerHTML = '';
+
+  const intro = document.createElement('p');
+  intro.style.cssText = 'color:var(--ink-soft);font-size:13px;';
+  intro.textContent = `${data.dia}, ${fmtFecha(data.fecha)} — completá solo los sabores que se armaron este turno. "A producir (calc.)" es de referencia (en Extras de producción es lo que hace falta dejar armado HOY para mañana). Guardá cada sabor con su botón apenas lo termines (no hace falta esperar al final del turno); tocá "Editar" si necesitás corregir algo ya guardado. Los puestos y las observaciones se guardan al cerrar el turno, con el botón de abajo.`;
+  cont.appendChild(intro);
+
+  if(bloqueadoGlobal){
+    const aviso = document.createElement('div');
+    aviso.className = 'msg ok no-print';
+    aviso.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;';
+    aviso.innerHTML = `<span>✓ Turno cerrado — todo el registro de Producción de este día quedó bloqueado.</span><button type="button" class="btn secondary" id="btnReabrirTurno" style="font-size:12px;padding:5px 9px;">Reabrir</button>`;
+    cont.appendChild(aviso);
+    cont.querySelector('#btnReabrirTurno').onclick = () => reabrirTurnoProduccion(fecha);
+  }
+
+  cont.appendChild(bloquePuestosMaquina('Máquina 1', 'm1', EMPLEADOS_REGISTRO, estado.maquina1, bloqueadoGlobal));
+  cont.appendChild(bloquePuestosMaquina('Máquina 2', 'm2', EMPLEADOS_REGISTRO, estado.maquina2, bloqueadoGlobal));
+
+  // --- Producción por sabor (sabores normales, Máquina Nº) ---
+  const h1 = document.createElement('h4');
+  h1.className = 'cat-heading';
+  h1.textContent = 'Producción por sabor';
+  cont.appendChild(h1);
+  const { wrap: wrap1, tbody: tbody1 } = crearTablaRegistroProduccion();
+  sabores.forEach(nombre => {
+    const ref = porSabor[nombre];
+    const aHacerMostrar = ref ? ref.aHacerUnidades : null;
+    tbody1.appendChild(filaRegistroProduccion(nombre, nombre, aHacerMostrar, '', false, EMPLEADOS_REGISTRO, guardadoPorSabor[nombre], bloqueadoGlobal));
+  });
+  cont.appendChild(wrap1);
+
+  // --- Canastas completas: hoy arman la canasta entera (disco + relleno +
+  // el molde que dejaron listo el día anterior) — cantidad = lo que sale HOY
+  // de ese sabor, igual que un sabor normal. Responsable en vez de Máquina.
+  if(saboresCanasta.length){
+    const h2 = document.createElement('h4');
+    h2.className = 'cat-heading';
+    h2.textContent = 'Canastas completas';
+    cont.appendChild(h2);
+    const { wrap: wrap2, tbody: tbody2 } = crearTablaRegistroProduccion();
+    saboresCanasta.forEach(nombre => {
+      const ref = porSabor[nombre];
+      const aHacerMostrar = ref ? ref.aHacerUnidades : null;
+      tbody2.appendChild(filaRegistroProduccion(nombre, nombre, aHacerMostrar, '', true, EMPLEADOS_REGISTRO, guardadoPorSabor[nombre], bloqueadoGlobal));
+    });
+    cont.appendChild(wrap2);
+  }
+
+  // --- Extras de producción (para mañana): Rollos de Jamón y Queso y el
+  // Molde de Canasta de cada sabor — ambos se arman HOY para usarse mañana,
+  // y ambos con Responsable (no son un puesto de máquina).
+  const h3 = document.createElement('h4');
+  h3.className = 'cat-heading';
+  h3.textContent = 'Extras de producción (para mañana)';
+  cont.appendChild(h3);
+  if(prep.porcentajeCocina != null && Number(prep.porcentajeCocina) !== 100){
+    const notaPct = document.createElement('p');
+    notaPct.style.cssText = 'color:var(--ink-soft);font-size:12px;margin:-4px 0 8px;';
+    notaPct.textContent = `Ya aplicado el ${ent(prep.porcentajeCocina)}% de venta a cubrir guardado hoy para Cocina.`;
+    cont.appendChild(notaPct);
+  }
+  const { wrap: wrap3, tbody: tbody3 } = crearTablaRegistroProduccion();
+  const etiquetaManana = ' <span style="color:var(--ink-soft);font-size:11px;">(armar hoy para mañana)</span>';
+  tbody3.appendChild(filaRegistroProduccion(NOMBRE_ROLLOS_JYQ, NOMBRE_ROLLOS_JYQ, prep.rollosJyQ, etiquetaManana, true, EMPLEADOS_REGISTRO, guardadoPorSabor[NOMBRE_ROLLOS_JYQ], bloqueadoGlobal));
+  saboresCanasta.forEach(nombre => {
+    const c = canastaPorSabor[nombre];
+    const aHacerMostrar = c ? c.aHacerUnidades : 0;
+    const saborKeyMolde = 'Molde — ' + nombre;
+    tbody3.appendChild(filaRegistroProduccion('Molde de canasta — ' + nombre, saborKeyMolde, aHacerMostrar, etiquetaManana, true, EMPLEADOS_REGISTRO, guardadoPorSabor[saborKeyMolde], bloqueadoGlobal));
+  });
+  cont.appendChild(wrap3);
+
+  const obsWrap = document.createElement('div');
+  obsWrap.className = 'field-row';
+  obsWrap.style.cssText = 'max-width:640px;margin-top:18px;';
+  obsWrap.innerHTML = `
+    <label>Observaciones generales del turno</label>
+    <textarea id="inpObservacionesRegistro" rows="3" style="width:100%;font-family:inherit;font-size:14px;padding:9px 10px;border:1px solid var(--line);border-radius:3px;" ${bloqueadoGlobal ? 'disabled' : ''}>${estado.observaciones || ''}</textarea>
+  `;
+  cont.appendChild(obsWrap);
+
+  if(!bloqueadoGlobal){
+    const actions = document.createElement('div');
+    actions.className = 'actions no-print';
+    actions.innerHTML = `<button class="btn" id="btnGuardarRegistro">Enviar registro final del turno</button>`;
+    cont.appendChild(actions);
+    document.getElementById('btnGuardarRegistro').onclick = guardarRegistroProduccion;
+  }
+}
+
+// arma el objeto "item" de un sabor a partir de su fila en la tabla. La
+// celda de "máquina" puede ser el desplegable de Máquina Nº (sabores
+// normales) o el de Responsable (Canastas) — nunca los dos a la vez.
+function leerFilaSabor(tr){
+  const maq = tr.querySelector('.inp-maq-num');
+  const resp = tr.querySelector('.inp-responsable-canasta');
+  return {
+    sabor: tr.dataset.sabor,
+    maquinaNumero: maq ? maq.value : '',
+    responsable: resp ? resp.value : '',
+    maquinaVelocidad: tr.querySelector('.inp-maq-vel').value,
+    discosLote: tr.querySelector('.inp-disco-lote').value,
+    pesoPromTandaDiscos: tr.querySelector('.inp-peso-prom').value,
+    rellenoFecha: tr.querySelector('.inp-relleno-fecha').value,
+    pesoInicialRelleno: tr.querySelector('.inp-peso-inicial').value,
+    pesoFinalRelleno: tr.querySelector('.inp-peso-final').value,
+    horaInicio: tr.querySelector('.inp-hora-inicio').value,
+    horaFin: tr.querySelector('.inp-hora-fin').value,
+    totalProduccion: tr.querySelector('.inp-total-prod').value,
+    discosDanados: tr.querySelector('.inp-discos-danados').value
+  };
+}
+
+// re-habilita una fila ya guardada (Producción o Cocina) para corregirla —
+// al volver a tocar "Guardar" se pisa la misma fila en la planilla, no se
+// duplica (ver upsertFila en Code.gs).
+function habilitarEdicionFila(tr){
+  tr.classList.remove('fila-guardada');
+  [...tr.querySelectorAll('input,select')].forEach(el => el.disabled = false);
+  const btnGuardar = tr.querySelector('.btn-guardar-item');
+  if(btnGuardar){ btnGuardar.disabled = false; btnGuardar.textContent = 'Guardar'; btnGuardar.style.display = ''; }
+  const btnEditar = tr.querySelector('.btn-editar-item');
+  if(btnEditar) btnEditar.style.display = 'none';
+}
+
+// "preguardar" un sabor apenas se termina, sin esperar al cierre del turno.
+async function guardarItemTrazabilidad(tr){
+  const fecha = document.getElementById('fechaRegistro').value;
+  const item = leerFilaSabor(tr);
+  if(!item.totalProduccion || Number(item.totalProduccion) <= 0){
+    alert('Cargá el total producido de este sabor antes de guardarlo.');
+    return;
+  }
+  const btn = tr.querySelector('.btn-guardar-item');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try{
+    const r = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'registrarTrazabilidadItem', fecha, item })
+    });
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    tr.classList.add('fila-guardada');
+    [...tr.querySelectorAll('input,select')].forEach(el => el.disabled = true);
+    btn.textContent = '✓ Guardado'; btn.style.display = 'none';
+    const btnEditar = tr.querySelector('.btn-editar-item');
+    if(btnEditar) btnEditar.style.display = '';
+  }catch(err){
+    btn.disabled = false; btn.textContent = 'Guardar';
+    alert('No se pudo guardar este sabor: ' + err.message);
+  }
+}
+
+// cierre del turno: guarda los puestos + observaciones (una vez), cualquier
+// sabor que haya quedado sin guardar con su botón individual, y bloquea todo
+// el registro de Producción de ese día (ver "Bloqueo total al guardar el
+// registro final del turno" — Tanda 3). Se destraba puntualmente con
+// "Reabrir" (reabrirTurnoProduccion). Confirmado con Carolina (26/09/2026).
+async function guardarRegistroProduccion(){
+  if(!confirm('¿Cerrar el turno? Se va a bloquear todo el registro de Producción de este día — vas a poder destrabarlo puntualmente con el botón "Reabrir" si hace falta corregir algo.')) return;
+
+  const fecha = document.getElementById('fechaRegistro').value;
+  const msg = document.getElementById('msgRegistro');
+
+  const leerMaquina = (idBase) => {
+    const table = document.querySelector(`table.lotes[data-maquina="${idBase}"]`);
+    const get = (p) => table.querySelector(`.inp-puesto[data-puesto="${p}"]`).value.trim();
+    return { entrada: get('entrada'), relleno: get('relleno'), salida: get('salida') };
+  };
+  const maquina1 = leerMaquina('m1');
+  const maquina2 = leerMaquina('m2');
+  const observaciones = document.getElementById('inpObservacionesRegistro').value.trim();
+
+  // solo los sabores que NO se guardaron ya individualmente durante el turno
+  const filas = [...document.querySelectorAll('table.traza tbody tr[data-sabor]:not(.fila-guardada)')];
+  const items = filas.map(leerFilaSabor)
+    .filter(it => it.totalProduccion && Number(it.totalProduccion) > 0);
+
+  const btn = document.getElementById('btnGuardarRegistro');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try{
+    const r = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'registrarTrazabilidadProduccion', fecha, maquina1, maquina2, observaciones, items })
+    });
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    msg.className = 'msg ok';
+    msg.textContent = `Turno enviado. ${data.filas_detalle} sabor(es) más quedaron guardados.`;
+    pintarRegistroProduccionSector();
+  }catch(err){
+    msg.className = 'msg err'; msg.textContent = 'No se pudo guardar: ' + err.message;
+    btn.disabled = false; btn.textContent = 'Enviar registro final del turno';
+  }
+}
+
+async function reabrirTurnoProduccion(fecha){
+  if(!confirm('¿Reabrir el registro de Producción de este día? Se va a destrabar toda la tabla.')) return;
+  try{
+    const r = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'reabrirTurnoProduccion', fecha })
+    });
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    pintarRegistroProduccionSector();
+  }catch(err){
+    alert('No se pudo reabrir: ' + err.message);
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Registrar producción — sector DISCOS: registro simple por tipo de disco
+   (Horno / Frito / Recorte), con Responsable y cantidad. Sin puestos de
+   máquina ni finalización de turno — es independiente de Producción.
+   --------------------------------------------------------------------- */
+async function pintarRegistroDiscosSector(){
+  const cont = document.getElementById('contenidoRegistro');
+  const fecha = document.getElementById('fechaRegistro').value;
+  cont.innerHTML = '<div class="loading">Cargando…</div>';
+
+  let estado;
+  try{
+    const r = await fetch(`${APPS_SCRIPT_URL}?action=obtenerRegistroDiscosDia&fecha=${fecha}`);
+    estado = await r.json();
+    if(estado.error) throw new Error(estado.error);
+  }catch(err){
+    cont.innerHTML = `<div class="msg err" style="display:block;">No se pudo cargar: ${err.message}</div>`;
+    return;
+  }
+  if(SECTOR_REGISTRO_ACTIVO !== 'discos') return; // cambió de pestaña mientras cargaba
+
+  const guardadoPorTipo = {};
+  (estado.items || []).forEach(it => { guardadoPorTipo[it.tipo] = it; });
+
+  cont.innerHTML = '';
+  const intro = document.createElement('p');
+  intro.style.cssText = 'color:var(--ink-soft);font-size:13px;';
+  intro.textContent = 'Registro simple de discos por tipo — responsable y cantidad usada hoy. Guardá cada tipo con su botón; tocá "Editar" si necesitás corregir algo ya guardado.';
+  cont.appendChild(intro);
+
+  const wrap = document.createElement('div');
+  wrap.style.overflowX = 'auto';
+  const table = document.createElement('table');
+  table.className = 'lotes traza';
+  table.innerHTML = `
+    <thead><tr><th>Tipo</th><th>Responsable</th><th class="num">Cantidad</th><th class="no-print"></th></tr></thead>
+    <tbody></tbody>`;
+  const tbody = table.querySelector('tbody');
+  TIPOS_DISCO.forEach(tipo => {
+    const g = guardadoPorTipo[tipo];
+    const yaGuardado = !!g;
+    const dis = yaGuardado ? 'disabled' : '';
+    const tr = document.createElement('tr');
+    tr.dataset.tipo = tipo;
+    if(yaGuardado) tr.classList.add('fila-guardada');
+    tr.innerHTML = `
+      <td>${tipo}</td>
+      <td><select class="inp-responsable-disco" ${dis}>${opcionesEmpleadosSeleccion(EMPLEADOS_REGISTRO, g ? g.responsable : '')}</select></td>
+      <td><input type="number" min="0" step="1" class="inp-cantidad-disco" style="width:90px;" value="${g ? g.cantidad : ''}" ${dis}></td>
+      <td class="no-print" style="white-space:nowrap;">
+        <button type="button" class="btn secondary btn-guardar-disco" style="font-size:12px;padding:5px 9px;${yaGuardado ? 'display:none;' : ''}">Guardar</button>
+        <button type="button" class="btn secondary btn-editar-disco" style="font-size:12px;padding:5px 9px;${yaGuardado ? '' : 'display:none;'}">Editar</button>
+      </td>
+    `;
+    tr.querySelector('.btn-guardar-disco').onclick = () => guardarItemDiscos(tr, fecha);
+    tr.querySelector('.btn-editar-disco').onclick = () => habilitarEdicionFilaDiscos(tr);
+    tbody.appendChild(tr);
+  });
+  wrap.appendChild(table);
+  cont.appendChild(wrap);
+}
+
+function habilitarEdicionFilaDiscos(tr){
+  tr.classList.remove('fila-guardada');
+  [...tr.querySelectorAll('input,select')].forEach(el => el.disabled = false);
+  const btnGuardar = tr.querySelector('.btn-guardar-disco');
+  if(btnGuardar){ btnGuardar.disabled = false; btnGuardar.textContent = 'Guardar'; btnGuardar.style.display = ''; }
+  const btnEditar = tr.querySelector('.btn-editar-disco');
+  if(btnEditar) btnEditar.style.display = 'none';
+}
+
+async function guardarItemDiscos(tr, fecha){
+  const btn = tr.querySelector('.btn-guardar-disco');
+  const responsable = tr.querySelector('.inp-responsable-disco').value;
+  const cantidad = tr.querySelector('.inp-cantidad-disco').value;
+  if(!cantidad || Number(cantidad) <= 0){
+    alert('Cargá la cantidad antes de guardar.');
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try{
+    const r = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'registrarTrazabilidadDiscosItem', fecha, tipo: tr.dataset.tipo, responsable, cantidad })
+    });
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    tr.classList.add('fila-guardada');
+    [...tr.querySelectorAll('input,select')].forEach(el => el.disabled = true);
+    btn.textContent = '✓ Guardado'; btn.style.display = 'none';
+    const btnEditar = tr.querySelector('.btn-editar-disco');
+    if(btnEditar) btnEditar.style.display = '';
+  }catch(err){
+    btn.disabled = false; btn.textContent = 'Guardar';
+    alert('No se pudo guardar: ' + err.message);
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Pantalla ENVÍOS (Fábrica): cuánto mandarle hoy a cada local
+   --------------------------------------------------------------------- */
+const LOCALES_VENTA = LOCALES.slice(0, 3); // Centro, Patagonia, Zelarrayan — sin sectores de Fábrica
+let TAB_ENVIO_ACTIVO = LOCALES_VENTA[0];
+
+function cssId(local){ return local.replace(/[^a-zA-Z0-9]/g, ''); }
+
+async function renderEnvios(){
+  app.innerHTML = `
+    <button class="back" onclick="irA('home')">← Volver</button>
+    <div class="fab-toolbar">
+      <header class="top" style="margin:0;"><h1>Despachar envíos</h1></header>
+      <div class="field-row">
+        <label>Fecha</label>
+        <input type="date" id="fechaEnvios" value="${hoyISO()}">
+      </div>
+    </div>
+    <div class="fab-toolbar">
+      <div class="field-row">
+        <label>¿Quién despacha?</label>
+        <select id="inpResponsableEnvio"><option value="">Cargando…</option></select>
+      </div>
+      <div class="field-row">
+        <label>Repartidor</label>
+        <select id="inpRepartidorEnvio"><option value="">Cargando…</option></select>
+      </div>
+      <div class="field-row">
+        <label>Acompañante</label>
+        <select id="inpAcompananteEnvio"><option value="">Cargando…</option></select>
+      </div>
+    </div>
+    <p style="color:var(--ink-soft);font-size:12.5px;max-width:560px;">
+      Están listados todos los productos, igual que en "Cargar stock" — completá "Enviado (real)" y
+      vencimiento solo en lo que mandás hoy. La columna "Orden calculada" es de referencia (venta
+      proyectada de ese local menos lo que ya tiene cargado). Si un mismo producto sale con más de un
+      vencimiento, usá el botón <strong>+</strong> de esa fila para agregar otra línea.
+    </p>
+    <div class="tabs" id="tabsEnvios" style="display:none;"></div>
+    <div id="contenidoEnvios" class="loading">Calculando…</div>
+    <div class="msg" id="msgEnvios"></div>
+  `;
+  document.getElementById('fechaEnvios').onchange = cargarEnvios;
+  cargarEnvios();
+}
+
+async function cargarEnvios(){
+  const fecha = document.getElementById('fechaEnvios').value;
+  const cont = document.getElementById('contenidoEnvios');
+  cont.className = 'loading'; cont.textContent = 'Calculando…';
+  document.getElementById('tabsEnvios').style.display = 'none';
+  const msg = document.getElementById('msgEnvios');
+  msg.className = 'msg'; msg.textContent = '';
+
+  try{
+    const [r, categorias, empleados] = await Promise.all([
+      fetch(`${APPS_SCRIPT_URL}?action=calcularEnvios&fecha=${fecha}`),
+      obtenerCategorias(),
+      obtenerEmpleados()
+    ]);
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+
+    document.getElementById('inpResponsableEnvio').innerHTML = opcionesEmpleados(empleados);
+    document.getElementById('inpRepartidorEnvio').innerHTML = opcionesEmpleados(empleados);
+    document.getElementById('inpAcompananteEnvio').innerHTML = opcionesEmpleados(empleados);
+
+    const tabs = document.getElementById('tabsEnvios');
+    tabs.style.display = 'flex';
+    tabs.innerHTML = LOCALES_VENTA.map(l => `<button class="tab-btn ${l===TAB_ENVIO_ACTIVO?'active':''}" data-local="${l}">${l}</button>`).join('');
+    [...tabs.querySelectorAll('.tab-btn')].forEach(b => {
+      b.onclick = () => {
+        TAB_ENVIO_ACTIVO = b.dataset.local;
+        [...tabs.querySelectorAll('.tab-btn')].forEach(x => x.classList.toggle('active', x.dataset.local === TAB_ENVIO_ACTIVO));
+        [...document.querySelectorAll('.panel-envio-local')].forEach(p => p.style.display = (p.dataset.local === TAB_ENVIO_ACTIVO ? '' : 'none'));
+      };
+    });
+
+    cont.className = '';
+    cont.innerHTML = '';
+    LOCALES_VENTA.forEach(local => {
+      cont.appendChild(pintarEnvioLocal(local, data.envios[local] || [], data, categorias));
+    });
+    [...document.querySelectorAll('.panel-envio-local')].forEach(p => p.style.display = (p.dataset.local === TAB_ENVIO_ACTIVO ? '' : 'none'));
+
+    LOCALES_VENTA.forEach(local => {
+      const btn = document.getElementById(`btnGuardarEnvio-${cssId(local)}`);
+      if(btn) btn.onclick = () => guardarEnvio(local, fecha);
+      const btnImprimir = document.getElementById(`btnImprimirEnvio-${cssId(local)}`);
+      if(btnImprimir) btnImprimir.onclick = () => imprimirOrdenEnvio(local, fecha);
+    });
+  }catch(err){
+    cont.className = ''; cont.innerHTML = `<div class="msg err" style="display:block;">No se pudo calcular: ${err.message}</div>`;
+  }
+}
+
+// una fila por producto (todos, siempre visibles); el botón "+" agrega otra
+// fila del MISMO producto para cargar un segundo lote con otro vencimiento —
+// mismo patrón que "Cargar stock". Cada fila tiene su propio Guardar/Editar,
+// igual que en Registrar producción.
+function filaEnvio(nombre, ordenCalculada, esExtra, local, fecha){
+  const tr = document.createElement('tr');
+  tr.dataset.item = nombre;
+  // la orden calculada se guarda en la fila base (no en los "otro lote") para
+  // poder imprimir con este valor cuando todavía no se cargó nada a mano.
+  tr.dataset.orden = esExtra ? 0 : (ordenCalculada || 0);
+  tr.innerHTML = `
+    <td>${esExtra ? `<span class="item-extra">↳ otro lote</span>` : nombre}</td>
+    <td class="num" style="color:var(--ink-soft);">${esExtra ? '' : ent(ordenCalculada)}</td>
+    <td><input type="number" min="0" step="1" class="inp-cant" placeholder="0"></td>
+    <td><input type="date" class="inp-venc"></td>
+    <td class="col-add">${esExtra ? '' : '<button type="button" class="add-lote-btn" title="Agregar otro vencimiento para este producto">+</button>'}</td>
+    <td class="col-del">${esExtra ? '<button type="button" class="del-btn" title="Quitar">✕</button>' : ''}</td>
+    <td style="white-space:nowrap;">
+      <button type="button" class="btn secondary btn-guardar-item" style="font-size:12px;padding:5px 9px;">Guardar</button>
+      <button type="button" class="btn secondary btn-editar-item" style="font-size:12px;padding:5px 9px;display:none;">Editar</button>
+    </td>
+  `;
+  if(esExtra){
+    tr.querySelector('.del-btn').onclick = () => tr.remove();
+  } else {
+    tr.querySelector('.add-lote-btn').onclick = () => {
+      tr.insertAdjacentElement('afterend', filaEnvio(nombre, ordenCalculada, true, local, fecha));
+    };
+  }
+  tr.querySelector('.btn-guardar-item').onclick = () => guardarItemEnvio(tr, local, fecha);
+  tr.querySelector('.btn-editar-item').onclick = () => habilitarEdicionFila(tr);
+  return tr;
+}
+
+function tablaEnvioDe(items, porSabor, local, fecha){
+  const table = document.createElement('table');
+  table.className = 'lotes';
+  table.innerHTML = `
+    <thead><tr>
+      <th>Sabor / ítem</th>
+      <th class="col-cant">Orden calculada</th>
+      <th class="col-cant">Enviado (real)</th>
+      <th class="col-venc">Vencimiento</th>
+      <th class="col-add"></th>
+      <th class="col-del"></th>
+      <th></th>
+    </tr></thead>
+    <tbody></tbody>`;
+  const tbody = table.querySelector('tbody');
+  items.forEach(nombre => {
+    const orden = (porSabor[nombre] && porSabor[nombre].aHacerUnidades) || 0;
+    tbody.appendChild(filaEnvio(nombre, orden, false, local, fecha));
+  });
+  return table;
+}
+
+function pintarEnvioLocal(local, itemsCalculados, data, categorias){
+  const id = cssId(local);
+  const porSabor = {};
+  itemsCalculados.forEach(it => { porSabor[it.sabor] = it; });
+  const nombresCategorias = Object.keys(categorias);
+
+  const div = document.createElement('div');
+  div.className = 'panel-envio-local';
+  div.dataset.local = local;
+  div.style.display = 'none';
+
+  const intro = document.createElement('p');
+  intro.style.cssText = 'color:var(--ink-soft);font-size:13px;';
+  intro.textContent = `${data.dia}, ${fmtFecha(data.fecha)} — orden calculada para ${local}`;
+  div.appendChild(intro);
+
+  const nav = document.createElement('div');
+  nav.className = 'cat-nav';
+  div.appendChild(nav);
+
+  nombresCategorias.forEach((cat, i) => {
+    const catId = `cat-envio-${id}-${i}`;
+    const h = document.createElement('h4');
+    h.className = 'cat-heading';
+    h.id = catId;
+    h.textContent = cat;
+    div.appendChild(h);
+    div.appendChild(tablaEnvioDe(categorias[cat], porSabor, local, data.fecha));
+
+    const a = document.createElement('a');
+    a.href = `#${catId}`;
+    a.textContent = cat;
+    nav.appendChild(a);
+  });
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  actions.innerHTML = `
+    <button class="btn" id="btnGuardarEnvio-${id}">Enviar despacho a ${local}</button>
+    <button class="btn secondary" id="btnImprimirEnvio-${id}">🖶 Imprimir orden de envío</button>
+  `;
+  div.appendChild(actions);
+
+  return div;
+}
+
+// lee los 3 campos compartidos del despacho (responsable, repartidor,
+// acompañante) — los pide tanto el guardado por fila como el final.
+function datosComunesEnvio(){
+  return {
+    responsable: document.getElementById('inpResponsableEnvio').value.trim(),
+    repartidor: document.getElementById('inpRepartidorEnvio').value.trim(),
+    acompanante: document.getElementById('inpAcompananteEnvio').value.trim()
+  };
+}
+
+// "preguardar" un producto/lote apenas se carga, sin esperar a terminar
+// todo el despacho de ese local.
+async function guardarItemEnvio(tr, local, fecha){
+  const { responsable, repartidor, acompanante } = datosComunesEnvio();
+  if(!responsable){
+    alert('Indicá quién está despachando este envío antes de guardar (arriba de la lista de productos).');
+    return;
+  }
+  const cantidad = tr.querySelector('.inp-cant').value;
+  const vencimiento = tr.querySelector('.inp-venc').value;
+  if(!cantidad || Number(cantidad) <= 0 || !vencimiento){
+    alert('Cargá cantidad y vencimiento de este producto antes de guardarlo.');
+    return;
+  }
+  const item = { sabor: tr.dataset.item, cantidad, vencimiento };
+  const btn = tr.querySelector('.btn-guardar-item');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try{
+    const r = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'registrarEnvio', local, fecha, responsable, repartidor, acompanante, items: [item] })
+    });
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    tr.classList.add('fila-guardada');
+    [...tr.querySelectorAll('input')].forEach(el => el.disabled = true);
+    btn.textContent = '✓ Guardado'; btn.style.display = 'none';
+    const btnEditar = tr.querySelector('.btn-editar-item');
+    if(btnEditar) btnEditar.style.display = '';
+  }catch(err){
+    btn.disabled = false; btn.textContent = 'Guardar';
+    alert('No se pudo guardar este producto: ' + err.message);
+  }
+}
+
+// "Enviar despacho a [local]": guarda de una sola vez todo lo que haya
+// quedado sin guardar individualmente con su propio botón.
+async function guardarEnvio(local, fecha){
+  const { responsable, repartidor, acompanante } = datosComunesEnvio();
+  const msg = document.getElementById('msgEnvios');
+  if(!responsable){
+    msg.className = 'msg err'; msg.textContent = 'Indicá quién está despachando este envío.'; return;
+  }
+  const panel = document.querySelector(`.panel-envio-local[data-local="${local}"]`);
+  const filas = [...panel.querySelectorAll('tr[data-item]:not(.fila-guardada)')];
+  const items = filas.map(tr => ({
+    sabor: tr.dataset.item,
+    cantidad: tr.querySelector('.inp-cant').value,
+    vencimiento: tr.querySelector('.inp-venc').value
+  })).filter(it => it.cantidad && Number(it.cantidad) > 0 && it.vencimiento);
+
+  if(items.length === 0){
+    msg.className = 'msg err'; msg.textContent = 'Cargá cantidad y vencimiento de al menos un producto (los que ya guardaste con su propio botón no hace falta repetirlos).'; return;
+  }
+  const btn = document.getElementById(`btnGuardarEnvio-${cssId(local)}`);
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try{
+    const r = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'registrarEnvio', local, fecha, responsable, repartidor, acompanante, items })
+    });
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    filas.forEach(tr => {
+      if(Number(tr.querySelector('.inp-cant').value) > 0 && tr.querySelector('.inp-venc').value){
+        tr.classList.add('fila-guardada');
+        [...tr.querySelectorAll('input')].forEach(el => el.disabled = true);
+        const btnG = tr.querySelector('.btn-guardar-item');
+        btnG.textContent = '✓ Guardado'; btnG.style.display = 'none';
+        const btnE = tr.querySelector('.btn-editar-item');
+        if(btnE) btnE.style.display = '';
+      }
+    });
+    msg.className = 'msg ok';
+    msg.textContent = `Despacho enviado: ${data.envios_guardados} producto(s) más enviados a ${local}.`;
+  }catch(err){
+    msg.className = 'msg err'; msg.textContent = 'No se pudo guardar: ' + err.message;
+  }finally{
+    btn.disabled = false; btn.textContent = `Enviar despacho a ${local}`;
+  }
+}
+
+// Arma una hoja de "Orden de envío" imprimible para UN local. Si ya cargaron
+// cantidad a mano, imprime eso; si no (todavía no tiene tablet a mano quien
+// prepara el pedido), imprime la orden CALCULADA, así sirve de planilla en
+// papel para armar el envío y cargarlo después. Se salta cualquier producto
+// sin nada (ni cargado ni calculado) y la categoría entera si ninguno de sus
+// productos tiene algo para enviar.
+function imprimirOrdenEnvio(local, fecha){
+  const panel = document.querySelector(`.panel-envio-local[data-local="${local}"]`);
+  const filas = [...panel.querySelectorAll('tr[data-item]')];
+  const porSabor = {};
+  filas.forEach(tr => {
+    const nombre = tr.dataset.item;
+    const cantidadReal = Number(tr.querySelector('.inp-cant').value) || 0;
+    const venc = tr.querySelector('.inp-venc').value;
+    if(!porSabor[nombre]){
+      porSabor[nombre] = { ordenCalculada: Number(tr.dataset.orden) || 0, cantidadReal: 0, vencimiento: '' };
+    }
+    porSabor[nombre].cantidadReal += cantidadReal;
+    if(!porSabor[nombre].vencimiento && venc) porSabor[nombre].vencimiento = venc;
+  });
+  Object.keys(porSabor).forEach(n => {
+    const it = porSabor[n];
+    it.cantidadImprimir = it.cantidadReal > 0 ? it.cantidadReal : it.ordenCalculada;
+  });
+
+  const hayAlgo = Object.keys(porSabor).some(n => porSabor[n].cantidadImprimir > 0);
+  if(!hayAlgo){
+    alert(`No hay nada para enviar a ${local} hoy (ni cargado ni calculado).`);
+    return;
+  }
+
+  const categorias = SABORES_CACHE || {};
+  let filasHtml = '';
+  Object.keys(categorias).forEach(cat => {
+    const nombres = categorias[cat].filter(n => porSabor[n] && porSabor[n].cantidadImprimir > 0);
+    if(nombres.length === 0) return; // sin nada que enviar en esta categoría: no se imprime
+    filasHtml += `
+      <h3>${cat}</h3>
+      <table class="print-tabla">
+        <thead><tr><th>Sabor / ítem</th><th class="num">Cantidad</th><th>Vencimiento</th></tr></thead>
+        <tbody>
+          ${nombres.map(n => `
+            <tr>
+              <td>${n}</td>
+              <td class="num">${ent(porSabor[n].cantidadImprimir)}</td>
+              <td>${porSabor[n].vencimiento ? fmtFecha(porSabor[n].vencimiento) : ''}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  });
+
+  let area = document.getElementById('printAreaEnvio');
+  if(!area){
+    area = document.createElement('div');
+    area.id = 'printAreaEnvio';
+    document.body.appendChild(area);
+  }
+  area.innerHTML = `
+    <h1>Orden de envío</h1>
+    <p class="print-sub">${local} — ${fmtFecha(fecha)}</p>
+    ${filasHtml}
+  `;
+
+  document.body.classList.add('print-envio');
+  window.print();
+  document.body.classList.remove('print-envio');
+}
+
+/* ---------------------------------------------------------------------
+   Pantalla RECEPCIÓN (Local): confirmar cuánto llegó realmente
+   --------------------------------------------------------------------- */
+async function renderRecepcion(){
+  app.innerHTML = `
+    <button class="back" onclick="irA('home')">← Volver</button>
+    <header class="top"><h1>Confirmar recepción</h1></header>
+    <div class="field-row">
+      <label>¿Qué local sos?</label>
+      <select id="selLocalRecepcion">
+        ${LOCALES_VENTA.map(l => `<option value="${l}">${l}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field-row">
+      <label>¿Quién confirma?</label>
+      <input type="text" id="inpResponsableRecepcion" placeholder="Nombre y apellido">
+    </div>
+    <div id="contenidoRecepcion" class="loading">Buscando envíos pendientes…</div>
+    <div class="msg" id="msgRecepcion"></div>
+  `;
+  document.getElementById('selLocalRecepcion').onchange = cargarPendientesRecepcion;
+  cargarPendientesRecepcion();
+}
+
+async function cargarPendientesRecepcion(){
+  const local = document.getElementById('selLocalRecepcion').value;
+  const cont = document.getElementById('contenidoRecepcion');
+  cont.className = 'loading'; cont.textContent = 'Buscando envíos pendientes…';
+  const msg = document.getElementById('msgRecepcion');
+  msg.className = 'msg'; msg.textContent = '';
+
+  try{
+    const r = await fetch(`${APPS_SCRIPT_URL}?action=listarEnviosPendientes&local=${encodeURIComponent(local)}`);
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    const pendientes = data.pendientes || [];
+    cont.className = '';
+    if(pendientes.length === 0){
+      cont.innerHTML = `<div class="empty">No hay envíos pendientes de confirmar para ${local}.</div>`;
+      return;
+    }
+    cont.innerHTML = `
+      <table class="lotes">
+        <thead><tr>
+          <th>Sabor / ítem</th>
+          <th>Enviado el</th>
+          <th class="col-cant">Cant. enviada</th>
+          <th>Vencimiento</th>
+          <th class="col-cant">Cant. recibida</th>
+        </tr></thead>
+        <tbody>
+          ${pendientes.map(p => `
+            <tr data-id="${p.ID}">
+              <td>${p.Sabor}</td>
+              <td style="color:var(--ink-soft);font-size:12.5px;">${fmtFecha(p.Fecha_envio)}</td>
+              <td class="num" style="color:var(--ink-soft);">${ent(p.Cantidad_Enviada)}</td>
+              <td style="color:var(--ink-soft);font-size:12.5px;">${fmtFecha(p.Vencimiento)}</td>
+              <td><input type="number" min="0" step="1" class="inp-recibido" value="${p.Cantidad_Enviada}"></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="actions">
+        <button class="btn" id="btnConfirmarRecepcion">Confirmar recepción</button>
+      </div>
+    `;
+    document.getElementById('btnConfirmarRecepcion').onclick = guardarRecepcion;
+  }catch(err){
+    cont.className = ''; cont.innerHTML = `<div class="msg err" style="display:block;">No se pudo buscar: ${err.message}</div>`;
+  }
+}
+
+async function guardarRecepcion(){
+  const local = document.getElementById('selLocalRecepcion').value;
+  const responsable = document.getElementById('inpResponsableRecepcion').value.trim();
+  const msg = document.getElementById('msgRecepcion');
+  if(!responsable){
+    msg.className = 'msg err'; msg.textContent = 'Indicá quién está confirmando la recepción.'; return;
+  }
+  const filas = [...document.querySelectorAll('#contenidoRecepcion tr[data-id]')];
+  const confirmaciones = filas.map(tr => ({
+    id: tr.dataset.id,
+    cantidadRecibida: tr.querySelector('.inp-recibido').value
+  })).filter(c => c.cantidadRecibida !== '');
+
+  if(confirmaciones.length === 0){
+    msg.className = 'msg err'; msg.textContent = 'Cargá la cantidad recibida de al menos un producto.'; return;
+  }
+  const btn = document.getElementById('btnConfirmarRecepcion');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try{
+    const r = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'confirmarRecepcion', local, responsable, confirmaciones })
+    });
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    msg.className = 'msg ok';
+    msg.textContent = `Confirmado: ${data.confirmados} producto(s).`;
+    cargarPendientesRecepcion();
+  }catch(err){
+    msg.className = 'msg err'; msg.textContent = 'No se pudo guardar: ' + err.message;
+  }finally{
+    btn.disabled = false; btn.textContent = 'Confirmar recepción';
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Pantalla HISTORIAL: enviado vs. recibido, por local — solo lectura
+   --------------------------------------------------------------------- */
+async function renderHistorialEnvios(){
+  app.innerHTML = `
+    <button class="back" onclick="irA('home')">← Volver</button>
+    <header class="top"><h1>Historial de envíos</h1></header>
+    <div class="field-row">
+      <label>Local</label>
+      <select id="selLocalHistorial">
+        <option value="">Todos</option>
+        ${LOCALES_VENTA.map(l => `<option value="${l}">${l}</option>`).join('')}
+      </select>
+    </div>
+    <div id="contenidoHistorial" class="loading">Buscando envíos…</div>
+  `;
+  document.getElementById('selLocalHistorial').onchange = cargarHistorialEnvios;
+  cargarHistorialEnvios();
+}
+
+async function cargarHistorialEnvios(){
+  const local = document.getElementById('selLocalHistorial').value;
+  const cont = document.getElementById('contenidoHistorial');
+  cont.className = 'loading'; cont.textContent = 'Buscando envíos…';
+  try{
+    const r = await fetch(`${APPS_SCRIPT_URL}?action=listarHistorialEnvios${local ? '&local=' + encodeURIComponent(local) : ''}`);
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    const envios = data.envios || [];
+    cont.className = '';
+    if(envios.length === 0){
+      cont.innerHTML = `<div class="empty">Todavía no hay envíos registrados${local ? ' para ' + local : ''}.</div>`;
+      return;
+    }
+    cont.innerHTML = `
+      <p style="color:var(--ink-soft);font-size:13px;">${envios.length} envío(s) registrado(s)${local ? ' — ' + local : ''}</p>
+      <table class="prod">
+        <thead><tr>
+          <th>Fecha envío</th>
+          <th>Local</th>
+          <th>Sabor</th>
+          <th class="num">Enviado</th>
+          <th>Vencimiento</th>
+          <th>Recibido el</th>
+          <th class="num">Recibido</th>
+          <th class="num">Diferencia</th>
+        </tr></thead>
+        <tbody>
+          ${envios.map(f => `
+            <tr>
+              <td>${fmtFecha(f.Fecha_envio)}</td>
+              <td>${f.Local}</td>
+              <td>${f.Sabor}</td>
+              <td class="num">${ent(f.Cantidad_Enviada)}</td>
+              <td style="color:var(--ink-soft);font-size:12.5px;">${fmtFecha(f.Vencimiento)}</td>
+              <td style="color:var(--ink-soft);font-size:12.5px;">${f.Fecha_recepcion ? fmtFecha(f.Fecha_recepcion) : '— sin confirmar —'}</td>
+              <td class="num">${f.Fecha_recepcion ? ent(f.Cantidad_Recibida) : '—'}</td>
+              <td class="num" style="${f.Diferencia ? 'color:var(--alert);font-weight:600;' : ''}">${f.Diferencia === null ? '—' : (f.Diferencia > 0 ? '+' : '') + ent(f.Diferencia)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+  }catch(err){
+    cont.className = ''; cont.innerHTML = `<div class="msg err" style="display:block;">No se pudo buscar: ${err.message}</div>`;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Pantalla PLANIFICACIÓN: editar venta proyectada por local
+   --------------------------------------------------------------------- */
+async function renderPlanificacion(){
+  app.innerHTML = `
+    <button class="back" onclick="irA('home')">← Volver</button>
+    <header class="top"><h1>Planificación de ventas</h1></header>
+    <p style="color:var(--ink-soft);font-size:13px;margin-top:-8px;">
+      Cuánto se espera vender de cada sabor, cada día — esto es lo que usa el cálculo de "qué producir hoy".
+    </p>
+
+    <div style="border:1px dashed var(--line);border-radius:4px;padding:14px 16px;margin:16px 0;">
+      <label style="margin-bottom:8px;">Importar desde Excel (reemplaza toda la planificación de los 3 locales)</label>
+      <input type="file" id="inputExcelPlan" accept=".xlsx,.xls">
+      <div id="msgImportPlan" class="msg" style="margin-top:10px;"></div>
+    </div>
+  `;
+  document.getElementById('inputExcelPlan').onchange = importarExcelPlanificacion;
+}
+
+// nombres de sabor en la planilla que no calzan tal cual con el sistema
+// (por ambigüedad con otro ítem de igual nombre en otro rubro)
+const ALIAS_IMPORT = {
+  'DIPS|ED. LIMITADA': 'ED. LIMITADA (dip)',
+  'CAJITA CRIOLLA|JAMON Y QUESO': 'CAJITA JAMON Y QUESO',
+  'CAJITA CRIOLLA|HAMBURGUESA': 'CAJITA HAMBURGUESA',
+  'CAJITA CRIOLLA|CHOCLO': 'CAJITA CHOCLO',
+  'CAJITA CRIOLLA|POLLO Y CHEDDAR': 'CAJITA POLLO Y CHEDDAR',
+  'CAJITA CRIOLLA|COOKIES *2': 'BOLSA COOKIES X2',
+};
+const CATEGORIAS_EXCEL = ['EMPANADAS','TOPPINGS','DIPS','POSTRES','CAJITA CRIOLLA'];
+const HOJA_A_LOCAL = { CENTRO: 'Centro', PATAGONIA: 'Patagonia', ZELARRAYAN: 'Zelarrayan' };
+
+function normalizarNombre(s){
+  return String(s).trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+async function importarExcelPlanificacion(ev){
+  const file = ev.target.files[0];
+  if(!file) return;
+  const msg = document.getElementById('msgImportPlan');
+  msg.className = 'msg'; msg.style.display = 'block'; msg.textContent = 'Leyendo archivo…';
+
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+
+    // mapa Sabor (real, del sistema) -> normalizado, para matchear
+    const sabores = await obtenerSaboresPlanos();
+    const porNombreNormalizado = {};
+    sabores.forEach(s => { porNombreNormalizado[normalizarNombre(s)] = s; });
+
+    const sinMatch = [];
+    let totalActualizados = 0;
+    let totalCreados = 0;
+
+    for(const hoja of Object.keys(HOJA_A_LOCAL)){
+      if(!wb.SheetNames.includes(hoja)){ continue; }
+      const local = HOJA_A_LOCAL[hoja];
+      const filasHoja = XLSX.utils.sheet_to_json(wb.Sheets[hoja], { header: 1, raw: true, defval: 0 });
+
+      let categoriaActual = null;
+      const filasParaGuardar = [];
+      filasHoja.forEach(fila => {
+        const primera = fila[0];
+        if(primera === undefined || primera === null || primera === '') return;
+        const texto = String(primera).trim();
+        if(CATEGORIAS_EXCEL.includes(texto.toUpperCase())){ categoriaActual = texto.toUpperCase(); return; }
+        if(texto.toUpperCase() === 'LUNES') return; // fila de encabezado de días
+
+        const alias = ALIAS_IMPORT[`${categoriaActual}|${normalizarNombre(texto)}`];
+        const saborReal = alias || porNombreNormalizado[normalizarNombre(texto)];
+        if(!saborReal){ sinMatch.push(texto); return; }
+
+        // columnas 1..7 = Lunes..Domingo
+        filasParaGuardar.push({
+          sabor: saborReal,
+          Lunes: fila[1]||0, Martes: fila[2]||0, Miércoles: fila[3]||0, Jueves: fila[4]||0,
+          Viernes: fila[5]||0, Sábado: fila[6]||0, Domingo: fila[7]||0
+        });
+      });
+
+      if(filasParaGuardar.length > 0){
+        const r = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'actualizarPlanificacion', local, filas: filasParaGuardar })
+        });
+        const resp = await r.json();
+        if(resp.error) throw new Error(`${local}: ${resp.error}`);
+        totalActualizados += resp.filas_actualizadas;
+        totalCreados += resp.filas_creadas || 0;
+      }
+    }
+
+    const unicosSinMatch = [...new Set(sinMatch)];
+    msg.className = unicosSinMatch.length ? 'msg err' : 'msg ok';
+    msg.textContent = `Importado: ${totalActualizados} ítem(s) actualizados en los 3 locales.` +
+      (totalCreados > 0 ? ` (${totalCreados} fila(s) nueva(s) creadas porque no existían todavía).` : '') +
+      (unicosSinMatch.length ? ` Sin encontrar en el sistema (se ignoraron): ${unicosSinMatch.join(', ')}` : '');
+  }catch(err){
+    msg.className = 'msg err'; msg.textContent = 'No se pudo importar: ' + err.message;
+  }
+  ev.target.value = ''; // permite volver a subir el mismo archivo si hace falta
+}
+
+async function obtenerSaboresPlanos(){
+  const categorias = await obtenerCategorias();
+  return Object.values(categorias).flat();
+}
+
+/* ---------------------------------------------------------------------
+   Pantalla FICHAS TÉCNICAS: importar/actualizar recetas (Rellenos,
+   Preparados, Postres, Dips, Edición Limitada) desde el .xlsx de cada una.
+   Se parsea directo acá en el navegador (con la misma librería XLSX que ya
+   usa la importación de Planificación) — el backend solo guarda lo ya
+   armado en Ref_Recetas / Ref_RecetaDetalle.
+   --------------------------------------------------------------------- */
+const TIPOS_FICHA = [
+  { value: 'Relleno', label: 'Relleno' },
+  { value: 'Preparado', label: 'Preparado' },
+  { value: 'Postre', label: 'Postre' },
+  { value: 'Dip', label: 'Dip' },
+  { value: 'EdicionLimitada', label: 'Edición Limitada' }
+];
+const SECCIONES_FIN_FICHA = ['PROCEDIMIENTO', 'DATOS TECNIC', 'PUNTOS DE CONTROL'];
+
+function normalizarFicha(s){
+  return String(s == null ? '' : s).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+}
+
+// única lógica de parseo — corre acá en el navegador (Code.gs solo recibe
+// el JSON ya armado, ver importarFichaTecnica en Code.gs).
+function parseFichaTecnica(filas){
+  let filaHeader = -1;
+  let colClasif = -1, colIngred = -1, colCant = -1, colMedida = -1, colRinde = -1;
+  for(let r = 0; r < Math.min(filas.length, 10); r++){
+    const fila = filas[r];
+    let cIdxClasif = -1, cIdxIngred = -1;
+    for(let c = 0; c < fila.length; c++){
+      const v = normalizarFicha(fila[c]);
+      if(v === 'CLASIFICACION') cIdxClasif = c;
+      if(v === 'INGREDIENTE') cIdxIngred = c;
+    }
+    if(cIdxClasif !== -1 && cIdxIngred !== -1){
+      filaHeader = r; colClasif = cIdxClasif; colIngred = cIdxIngred;
+      for(let c = 0; c < fila.length; c++){
+        const v = normalizarFicha(fila[c]);
+        if(v === 'CANTIDAD') colCant = c;
+        if(v === 'MEDIDA') colMedida = c;
+        if(v === 'RINDE') colRinde = c;
+      }
+      break;
+    }
+  }
+  if(filaHeader === -1) return null;
+
+  // el "Rinde:" puede traer DOS pares cantidad+unidad, uno debajo del otro
+  // (ej. Dips: "3 KG" y, en la fila de abajo, "75 UN") — se guardan los dos
+  // para poder convertir entre kilos y unidades más adelante.
+  let rindeCantidad = '', rindeUnidad = '', rindeCantidad2 = '', rindeUnidad2 = '';
+  let filaRindeEncontrada = -1, colRindeLabel = -1;
+  for(let r = 0; r < filaHeader; r++){
+    const fila = filas[r];
+    for(let c = 0; c < fila.length; c++){
+      if(normalizarFicha(fila[c]).indexOf('RINDE') === 0){
+        const resto = fila.slice(c + 1).filter(x => x !== '' && x != null);
+        if(resto.length >= 1) rindeCantidad = resto[0];
+        if(resto.length >= 2) rindeUnidad = resto[1];
+        filaRindeEncontrada = r;
+        colRindeLabel = c;
+      }
+    }
+  }
+  if(filaRindeEncontrada !== -1 && filaRindeEncontrada + 1 < filaHeader){
+    const filaSig = filas[filaRindeEncontrada + 1];
+    const restoSig = filaSig.slice(colRindeLabel + 1).filter(x => x !== '' && x != null);
+    if(restoSig.length >= 2 && !isNaN(Number(restoSig[0]))){
+      rindeCantidad2 = restoSig[0];
+      rindeUnidad2 = restoSig[1];
+    }
+  }
+
+  const ingredientes = [];
+  for(let r = filaHeader + 1; r < filas.length; r++){
+    const fila = filas[r];
+    const clasif = fila[colClasif];
+    const ingred = fila[colIngred];
+    const clasifNorm = normalizarFicha(clasif);
+    if(SECCIONES_FIN_FICHA.some(k => clasifNorm.indexOf(k) === 0)) break;
+    if((clasif === '' || clasif == null) && (ingred === '' || ingred == null)) break;
+    if(ingred === '' || ingred == null) continue;
+    ingredientes.push({
+      clasificacion: clasif || '',
+      ingrediente: String(ingred).trim(),
+      cantidad: colCant !== -1 && fila[colCant] !== '' && fila[colCant] != null ? Number(fila[colCant]) : '',
+      medida: colMedida !== -1 ? (fila[colMedida] || '') : '',
+      rinde: colRinde !== -1 && fila[colRinde] !== '' && fila[colRinde] != null ? Number(fila[colRinde]) : ''
+    });
+  }
+  return { rindeCantidad, rindeUnidad, rindeCantidad2, rindeUnidad2, ingredientes };
+}
+
+async function renderFichasTecnicas(){
+  app.innerHTML = `
+    <button class="back" onclick="irA('home')">← Volver</button>
+    <header class="top"><h1>Fichas técnicas</h1></header>
+    <p style="color:var(--ink-soft);font-size:13px;">
+      Importá acá el .xlsx de cada ficha (Rellenos, Preparados, Postres, Dips, Edición Limitada) — cada solapa del
+      Excel es una receta. Volver a importar una ficha reemplaza sus recetas por la versión nueva. El nombre de
+      cada solapa tiene que ser igual al Relleno/Sabor que ya usás en el resto del sistema, para que puedan cruzarse.
+    </p>
+
+    <div style="border:1px dashed var(--line);border-radius:4px;padding:14px 16px;margin:16px 0;max-width:480px;">
+      <div class="field-row" style="margin-bottom:12px;">
+        <label>Tipo de ficha</label>
+        <select id="selTipoFicha">
+          ${TIPOS_FICHA.map(t => `<option value="${t.value}">${t.label}</option>`).join('')}
+        </select>
+      </div>
+      <label style="margin-bottom:8px;">Archivo (.xlsx)</label>
+      <input type="file" id="inputFichaTecnica" accept=".xlsx,.xls">
+      <div id="msgImportFicha" class="msg" style="margin-top:10px;"></div>
+    </div>
+
+    <div id="revisionFichaContainer"></div>
+
+    <div id="contenidoRecetasCargadas" class="loading">Buscando recetas cargadas…</div>
+  `;
+  document.getElementById('inputFichaTecnica').onchange = manejarArchivoFicha;
+  cargarRecetasCargadas();
+}
+
+// tipo de ficha -> a qué lista de nombres ya existentes se compara cada
+// solapa, para poder avisar ANTES de guardar si el nombre no coincide con
+// nada (Relleno/Sabor con typo, o directamente inventado). Los Preparados
+// no se validan porque no aparecen sueltos en ningún lado — solo se usan
+// como ingrediente adentro de otras fichas.
+async function referenciaParaTipo(tipoFicha){
+  if(tipoFicha === 'Relleno' || tipoFicha === 'EdicionLimitada') return await obtenerRellenos();
+  if(tipoFicha === 'Postre' || tipoFicha === 'Dip') return Object.values(await obtenerCategorias()).flat();
+  return null;
+}
+
+async function manejarArchivoFicha(ev){
+  const file = ev.target.files[0];
+  if(!file) return;
+  const tipoFicha = document.getElementById('selTipoFicha').value;
+  const msg = document.getElementById('msgImportFicha');
+  document.getElementById('revisionFichaContainer').innerHTML = '';
+  msg.className = 'msg'; msg.style.display = 'block'; msg.textContent = 'Leyendo archivo…';
+
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+
+    const recetas = [];
+    const salteadas = [];
+    wb.SheetNames.forEach(nombreHoja => {
+      const filas = XLSX.utils.sheet_to_json(wb.Sheets[nombreHoja], { header: 1, raw: true, defval: '' });
+      const parsed = parseFichaTecnica(filas);
+      if(!parsed){ salteadas.push(nombreHoja); return; }
+      recetas.push({
+        nombreReceta: nombreHoja.trim(),
+        rindeCantidad: parsed.rindeCantidad, rindeUnidad: parsed.rindeUnidad,
+        rindeCantidad2: parsed.rindeCantidad2, rindeUnidad2: parsed.rindeUnidad2,
+        ingredientes: parsed.ingredientes
+      });
+    });
+
+    if(recetas.length === 0){
+      msg.className = 'msg err'; msg.textContent = 'No encontré ninguna receta en ese archivo.';
+      ev.target.value = ''; return;
+    }
+
+    msg.style.display = 'none';
+    const referencia = await referenciaParaTipo(tipoFicha);
+    mostrarRevisionFicha(tipoFicha, recetas, salteadas, referencia);
+  }catch(err){
+    msg.className = 'msg err'; msg.textContent = 'No se pudo leer el archivo: ' + err.message;
+  }
+  ev.target.value = '';
+}
+
+// pantalla de revisión ANTES de guardar: por cada solapa, dice si el nombre
+// coincide con un Relleno/Sabor que ya existe en el sistema; si no coincide
+// deja un campo para escribir a mano a qué corresponde en vez de cancelar
+// todo e ir a corregir el Excel.
+function mostrarRevisionFicha(tipoFicha, recetas, salteadas, referencia){
+  const rev = document.getElementById('revisionFichaContainer');
+  const referenciaNorm = referencia ? referencia.map(n => normalizarFicha(n)) : null;
+  const etiquetaReferencia = (tipoFicha === 'Postre' || tipoFicha === 'Dip') ? 'Sabores' : 'Rellenos';
+
+  const filasHtml = recetas.map((r, i) => {
+    const coincide = referenciaNorm === null ? null : referenciaNorm.indexOf(normalizarFicha(r.nombreReceta)) !== -1;
+    const estado = coincide === null
+      ? `<span style="color:var(--ink-soft);">— no se valida (Preparado)</span>`
+      : coincide
+        ? `<span style="color:#3f7a4a;">✓ coincide</span>`
+        : `<span style="color:#b23b2e;">⚠ no encontré ese nombre entre los ${etiquetaReferencia}</span>`;
+    const rinde2 = r.rindeCantidad2 !== '' ? ` / ${r.rindeCantidad2} ${r.rindeUnidad2}` : '';
+    return `
+      <tr>
+        <td>${r.nombreReceta}<br>${estado}</td>
+        <td>${r.rindeCantidad} ${r.rindeUnidad}${rinde2}</td>
+        <td>${r.ingredientes.length}</td>
+        <td><input type="text" class="inp-nombre-correcto" data-idx="${i}" placeholder="dejar igual"></td>
+      </tr>`;
+  }).join('');
+
+  const salteadasHtml = salteadas.length
+    ? `<p style="color:var(--ink-soft);font-size:12.5px;margin-top:10px;">Se salteó (no parece una hoja de receta): ${salteadas.join(', ')}.</p>`
+    : '';
+
+  rev.innerHTML = `
+    <div style="border:1px solid var(--line);border-radius:4px;padding:14px 16px;margin:16px 0;">
+      <p style="font-size:13px;margin-bottom:10px;">
+        Revisá antes de guardar. Si alguna receta dice "⚠ no encontré ese nombre", escribí en la última columna
+        a qué ${etiquetaReferencia.slice(0, -1)} corresponde tal cual está en el sistema (o cancelá y corregí el
+        nombre de la solapa en el Excel).
+      </p>
+      <table class="lotes" style="width:100%;">
+        <thead><tr><th>Receta (solapa del Excel)</th><th>Rinde</th><th>Ingredientes</th><th>Corregir nombre a…</th></tr></thead>
+        <tbody>${filasHtml}</tbody>
+      </table>
+      ${salteadasHtml}
+      <div class="actions" style="margin-top:12px;">
+        <button class="btn" id="btnConfirmarFicha">Confirmar y guardar</button>
+        <button class="btn secondary" id="btnCancelarFicha">Cancelar</button>
+      </div>
+      <div class="msg" id="msgConfirmarFicha"></div>
+    </div>`;
+
+  document.getElementById('btnCancelarFicha').onclick = () => { rev.innerHTML = ''; };
+  document.getElementById('btnConfirmarFicha').onclick = async () => {
+    rev.querySelectorAll('.inp-nombre-correcto').forEach(inp => {
+      const val = inp.value.trim();
+      if(val) recetas[Number(inp.dataset.idx)].nombreReceta = val;
+    });
+    const msgC = document.getElementById('msgConfirmarFicha');
+    msgC.className = 'msg'; msgC.style.display = 'block'; msgC.textContent = 'Guardando ' + recetas.length + ' receta(s)…';
+    try{
+      const r = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'importarFichaTecnica', tipoFicha, recetas })
+      });
+      const resp = await r.json();
+      if(resp.error) throw new Error(resp.error);
+      msgC.className = 'msg ok';
+      msgC.textContent = `Importadas ${resp.recetasImportadas.length} receta(s): ${resp.recetasImportadas.join(', ')}.`;
+      cargarRecetasCargadas();
+    }catch(err){
+      msgC.className = 'msg err'; msgC.textContent = 'No se pudo importar: ' + err.message;
+    }
+  };
+}
+
+async function cargarRecetasCargadas(){
+  const cont = document.getElementById('contenidoRecetasCargadas');
+  try{
+    const r = await fetch(`${APPS_SCRIPT_URL}?action=listarRecetas`);
+    const data = await r.json();
+    if(data.error) throw new Error(data.error);
+    const recetas = data.recetas || [];
+    cont.className = '';
+    if(recetas.length === 0){
+      cont.innerHTML = `<div class="empty">Todavía no importaste ninguna ficha.</div>`;
+      return;
+    }
+    const porTipo = {};
+    recetas.forEach(r => { (porTipo[r.TipoFicha] = porTipo[r.TipoFicha] || []).push(r); });
+    cont.innerHTML = TIPOS_FICHA.filter(t => porTipo[t.value]).map(t => `
+      <h4 class="cat-heading">${t.label} (${porTipo[t.value].length})</h4>
+      <p style="color:var(--ink-soft);font-size:12.5px;">${porTipo[t.value].map(r => `${r.Receta} (${r.RindeCantidad} ${r.RindeUnidad})`).join(' · ')}</p>
+    `).join('');
+  }catch(err){
+    cont.className = ''; cont.innerHTML = `<div class="msg err" style="display:block;">No se pudo buscar: ${err.message}</div>`;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   utilidades
+   --------------------------------------------------------------------- */
+// OJO: NO usar toISOString() acá — siempre da la fecha en UTC, así que entre
+// las 21:00 y las 23:59 (hora Argentina) ya devuelve el día SIGUIENTE. Se
+// calcula la fecha de hoy explícitamente en el huso horario de Argentina.
+function hoyISO(){
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit'
+  });
+  return fmt.format(new Date()); // en-CA da directamente formato yyyy-MM-dd
+}
+
+irA('home');
 </script>
 </body>
 </html>
